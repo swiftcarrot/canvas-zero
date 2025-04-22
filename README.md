@@ -1,10 +1,6 @@
 # canvas0
 
-Trying to power your next canvas app
-
-```sh
-npm install canvas-zero
-```
+Trying to power your next canvas app, WIP
 
 ## License
 
