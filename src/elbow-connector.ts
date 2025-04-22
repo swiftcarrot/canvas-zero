@@ -16,6 +16,11 @@ export interface Point {
   y: number;
 }
 
+export interface Segment {
+  p1: Point;
+  p2: Point;
+}
+
 export interface Rectangle {
   x: number;
   y: number;
@@ -222,56 +227,56 @@ export function createSvgPath(points: Point[]) {
   return path;
 }
 
-export const createElbowConnector = (
+function createElbowPath(p1: Point, p2: Point) {
+  const dx = Math.abs(p1.x - p2.x);
+  const dy = Math.abs(p1.y - p2.y);
+
+  if (dx >= dy) {
+    const x = (p1.x + p2.x) / 2;
+    return [p1, { x, y: p1.y }, { x, y: p2.y }, p2];
+  } else {
+    const y = (p1.y + p2.y) / 2;
+    return [p1, { x: p1.x, y }, { x: p2.x, y }, p2];
+  }
+}
+
+export function createElbowConnector(
   p1: Point,
   p2: Point,
   rect1?: Rectangle,
   rect2?: Rectangle
-) => {
-  const dx = Math.abs(p1.x - p2.x);
-  const dy = Math.abs(p1.y - p2.y);
-
-  if (!rect1) {
-    const width = GRID_SIZE * 2;
-    const height = GRID_SIZE * 2;
-    rect1 =
-      dx > dy
-        ? {
-            x: p1.x + (p1.x < p2.x ? -width : 0),
-            y: p1.y - height / 2,
-            width: width,
-            height: height,
-          }
-        : {
-            x: p1.x - width / 2,
-            y: p1.y + (p1.y < p2.y ? -height : 0),
-            width: width,
-            height: height,
-          };
+) {
+  if (rect1) {
+    if (rect2) {
+      return _createElbowConnector(p1, p2, rect1, rect2);
+    } else {
+      return _createElbowConnector(p1, p2, rect1);
+    }
+  } else {
+    if (rect2) {
+      return _createElbowConnector(p2, p1, rect2);
+    } else {
+      return createElbowPath(p1, p2);
+    }
   }
-  if (!rect2) {
-    const width = GRID_SIZE * 2;
-    const height = GRID_SIZE * 2;
-    rect2 =
-      dx > dy
-        ? {
-            x: p2.x + (p1.x < p2.x ? 0 : -width),
-            y: p2.y - height / 2,
-            width: width,
-            height: height,
-          }
-        : {
-            x: p2.x - width / 2,
-            y: p2.y + (p1.y < p2.y ? 0 : -height),
-            width: width,
-            height: height,
-          };
-  }
+}
 
-  const minX = Math.min(rect1.x, rect2.x);
-  const minY = Math.min(rect1.y, rect2.y);
-  const maxX = Math.max(rect1.x + rect1.width, rect2.x + rect2.width);
-  const maxY = Math.max(rect1.y + rect1.height, rect2.y + rect2.height);
+function _createElbowConnector(
+  p1: Point,
+  p2: Point,
+  rect1: Rectangle,
+  rect2?: Rectangle
+) {
+  const minX = Math.min(rect1.x, rect2 ? rect2.x : p2.x);
+  const minY = Math.min(rect1.y, rect2 ? rect2.y : p2.y);
+  const maxX = Math.max(
+    rect1.x + rect1.width,
+    rect2 ? rect2.x + rect2.width : p2.x
+  );
+  const maxY = Math.max(
+    rect1.y + rect1.height,
+    rect2 ? rect2.y + rect2.height : p2.y
+  );
 
   const bounds = {
     x: minX - GRID_SIZE,
@@ -280,9 +285,11 @@ export const createElbowConnector = (
     height: maxY - minY + GRID_SIZE * 2,
   };
 
-  let path = findPath(bounds, p1, p2, [rect1, rect2]);
+  let path = findPath(bounds, p1, p2, rect2 ? [rect1, rect2] : [rect1]);
   path = simplifyPath(path);
-  path = balancePath(path, rect1, rect2);
+  if (rect2) {
+    path = balancePath(path, rect1, rect2);
+  }
 
   return path;
-};
+}
