@@ -2,25 +2,24 @@ import { expect, test } from "bun:test";
 import { createElbowConnector } from "../src";
 
 test("createElbowConnector", () => {
-  expect(createElbowConnector({ x: 20, y: 20 }, { x: 40, y: 30 }))
-    .toMatchInlineSnapshot(`
-    [
-      {
-        "x": 20,
-        "y": 20,
-      },
-      {
-        "x": 30,
-        "y": 20,
-      },
-      {
-        "x": 30,
-        "y": 30,
-      },
-      {
-        "x": 40,
-        "y": 30,
-      },
-    ]
-  `);
+  expect(createElbowConnector({ x: 20, y: 20 }, { x: 40, y: 30 })).toEqual([
+    { x: 20, y: 20 },
+    { x: 30, y: 20 },
+    { x: 30, y: 30 },
+    { x: 40, y: 30 },
+  ]);
+
+  expect(
+    createElbowConnector(
+      { x: 100, y: 100 },
+      { x: 300, y: 300 },
+      { x: 40, y: 40, width: 120, height: 60 },
+      { x: 240, y: 300, width: 120, height: 60 }
+    )
+  ).toEqual([
+    { x: 100, y: 100 },
+    { x: 100, y: 200 },
+    { x: 300, y: 200 },
+    { x: 300, y: 300 },
+  ]);
 });
