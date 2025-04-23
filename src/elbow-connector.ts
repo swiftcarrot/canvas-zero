@@ -1,5 +1,5 @@
 import type { Point, Rectangle } from "./types";
-import { simplifyPath } from "./utils";
+import { rectangleByPoints, rectanglesOverlap, simplifyPath } from "./utils";
 
 export const GRID_SIZE = 10; // 10px grid by default
 
@@ -222,6 +222,29 @@ function _createElbowConnector(
   rect1: Rectangle,
   rect2?: Rectangle
 ) {
+  if (!rect2 && !rectanglesOverlap(rect1, rectangleByPoints(p1, p2))) {
+    const dx = Math.abs(p1.x - p2.x);
+    const dy = Math.abs(p1.y - p2.y);
+
+    const width = GRID_SIZE * 2;
+    const height = GRID_SIZE * 2;
+    if (dx >= dy) {
+      rect2 = {
+        x: p2.x + (p2.x > p1.x ? 0 : -width),
+        y: p2.y - height / 2,
+        width,
+        height,
+      };
+    } else {
+      rect2 = {
+        x: p2.x - width / 2,
+        y: p2.y + (p2.y > p1.y ? 0 : -height),
+        width: dx,
+        height: GRID_SIZE,
+      };
+    }
+  }
+
   const minX = Math.min(rect1.x, rect2 ? rect2.x : p2.x);
   const minY = Math.min(rect1.y, rect2 ? rect2.y : p2.y);
   const maxX = Math.max(
