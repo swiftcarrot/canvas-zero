@@ -1,0 +1,30 @@
+name: Test
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+      fail-fast: false
+    steps:
+      - id: checkout
+        uses: actions/checkout@v3
+      - id: setup-bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - id: install-deps
+        run: bun install
+      - id: tsc
+        run: bunx tsc
+      - id: build
+        run: bun run build
+      - id: test
+        run: bun test

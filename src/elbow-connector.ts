@@ -1,3 +1,6 @@
+import type { Point, Rectangle } from "./types";
+import { simplifyPath } from "./utils";
+
 export const GRID_SIZE = 10; // 10px grid by default
 
 export const snapToGrid = (value: number): number => {
@@ -10,23 +13,6 @@ export const snapPointToGrid = (point: { x: number; y: number }) => {
     y: snapToGrid(point.y),
   };
 };
-
-export interface Point {
-  x: number;
-  y: number;
-}
-
-export interface Segment {
-  p1: Point;
-  p2: Point;
-}
-
-export interface Rectangle {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
 
 const DIRECTIONS = [
   { x: 0, y: -GRID_SIZE }, // Up
@@ -58,27 +44,6 @@ function pointKey(point: Point): string {
   return `${point.x},${point.y}`;
 }
 
-function simplifyPath(path: Point[]) {
-  const simplified: Point[] = [];
-  for (let i = 0; i < path.length; i++) {
-    const p = path[i];
-    if (i === 0 || i === path.length - 1) {
-      simplified.push(p);
-    } else {
-      const prev = path[i - 1];
-      const next = path[i + 1];
-      if (
-        (prev.x === p.x && p.x === next.x) ||
-        (prev.y === p.y && p.y === next.y)
-      ) {
-        continue;
-      }
-      simplified.push(p);
-    }
-  }
-  return simplified;
-}
-
 function balancePath(path: Point[], rect1: Rectangle, rect2: Rectangle) {
   let x1, x2, y1, y2;
   if (rect1.x + rect1.width < rect2.x) {
@@ -103,16 +68,16 @@ function balancePath(path: Point[], rect1: Rectangle, rect2: Rectangle) {
       .map((p, i) => ({ x: p.x, y: p.y, i }))
       .filter((p) => p.x > x1 && p.x < x2);
     if (points.length === 2) {
-      const s = path[points[0].i - 1];
-      const e = path[points[1].i + 1];
+      const s = path[points[0]!.i - 1];
+      const e = path[points[1]!.i + 1];
       if (s && e) {
-        path[points[0].i] = {
+        path[points[0]!.i] = {
           x: s.x + (e.x - s.x) / 2,
-          y: points[0].y,
+          y: points[0]!.y,
         };
-        path[points[1].i] = {
+        path[points[1]!.i] = {
           x: s.x + (e.x - s.x) / 2,
-          y: points[1].y,
+          y: points[1]!.y,
         };
         balanced = true;
       }
@@ -124,15 +89,15 @@ function balancePath(path: Point[], rect1: Rectangle, rect2: Rectangle) {
       .map((p, i) => ({ x: p.x, y: p.y, i }))
       .filter((p) => p.y > y1 && p.y < y2);
     if (points.length === 2) {
-      const s = path[points[0].i - 1];
-      const e = path[points[1].i + 1];
+      const s = path[points[0]!.i - 1];
+      const e = path[points[1]!.i + 1];
       if (s && e) {
-        path[points[0].i] = {
-          x: points[0].x,
+        path[points[0]!.i] = {
+          x: points[0]!.x,
           y: s.y + (e.y - s.y) / 2,
         };
-        path[points[1].i] = {
-          x: points[1].x,
+        path[points[1]!.i] = {
+          x: points[1]!.x,
           y: s.y + (e.y - s.y) / 2,
         };
       }
@@ -149,7 +114,7 @@ interface Node {
   path: Point[];
 }
 
-export function findPath(
+function findPath(
   bounds: Rectangle,
   p1: Point,
   p2: Point,
@@ -182,7 +147,7 @@ export function findPath(
     }
 
     for (let dir = 0; dir < DIRECTIONS.length; dir++) {
-      const move = DIRECTIONS[dir];
+      const move = DIRECTIONS[dir]!;
       const nextPoint: Point = {
         x: current.point.x + move.x,
         y: current.point.y + move.y,
@@ -215,16 +180,6 @@ export function findPath(
   }
 
   return [];
-}
-
-export function createSvgPath(points: Point[]) {
-  if (!points || points.length === 0) return "";
-  let path = `M ${points[0].x} ${points[0].y}`;
-  for (let i = 1; i < points.length; i++) {
-    path += ` L ${points[i].x} ${points[i].y}`;
-  }
-
-  return path;
 }
 
 function createElbowPath(p1: Point, p2: Point) {
