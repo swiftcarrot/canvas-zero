@@ -1,5 +1,5 @@
 import type { Editor } from "../editor";
-import type { Node } from "../state";
+import type { Node } from "../types";
 
 export interface CustomNodeProps {
   node: Node;

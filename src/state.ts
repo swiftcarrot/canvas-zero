@@ -1,35 +1,6 @@
-import type { Point, Rectangle } from "./types";
+import type { Node, Edge, Point, Viewport, Selection } from "./types";
 
 // TODO: color palette support
-
-export interface Node {
-  id: string;
-  type: "text" | "file" | "link" | "group" | string;
-  position: Point;
-  width?: number;
-  height?: number;
-  data: any;
-}
-
-export interface Edge {
-  id: string;
-  type: string;
-  fromNodeId: string;
-  toNodeId: string;
-  fromHandleId: string;
-  toHandleId: string;
-}
-
-export interface Viewport {
-  rect: Rectangle;
-  zoom: number;
-}
-
-export interface Selection {
-  nodeIds: string[];
-  edgeIds: string[];
-  box: Rectangle | null;
-}
 
 export interface CanvasStateOptions {
   nodes?: Node[];
@@ -101,7 +72,6 @@ export class CanvasState {
     };
   }
 
-  // Extract state for external consumption
   getSerializableState(): Pick<CanvasState, "nodes" | "edges"> {
     return {
       nodes: this.nodes,

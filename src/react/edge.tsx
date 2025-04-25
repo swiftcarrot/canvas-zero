@@ -1,7 +1,6 @@
 import type { Editor } from "../editor";
-import type { Edge } from "../state";
 import { createSvgPath } from "../svg";
-import type { Point } from "../types";
+import type { Edge, Point } from "../types";
 
 export interface CustomEdgeProps {
   edge: Edge;

@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useCanvas } from "./context";
-import type { CanvasState } from "../state";
 
 interface DebuggerProps {
   className?: string;
@@ -11,8 +10,6 @@ export function Debugger({ className, style }: DebuggerProps) {
   const { editor } = useCanvas();
   const [isOpen, setIsOpen] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
-
-  // Get the serializable state (nodes and edges)
   const serializableState = editor.state.getSerializableState();
 
   const handleCopyClick = () => {

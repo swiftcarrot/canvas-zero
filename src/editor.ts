@@ -1,10 +1,5 @@
-import {
-  CanvasState,
-  type Node,
-  type Edge,
-  type CanvasStateOptions,
-} from "./state";
-import type { Point, Rectangle } from "./types";
+import { CanvasState, type CanvasStateOptions } from "./state";
+import type { Node, Edge, Point, Rectangle } from "./types";
 import { createElbowConnector } from "./elbow-connector";
 import { generateId, rectanglesOverlap } from "./utils";
 
@@ -333,23 +328,119 @@ export class Editor {
     this.state.lastMousePosition = null;
   }
 
-  // Get the edge path for rendering
   getEdgePath(edge: Edge): Point[] {
     const fromNode = this.state.getNodeById(edge.fromNodeId);
     const toNode = this.state.getNodeById(edge.toNodeId);
 
     if (!fromNode || !toNode) return [];
 
-    // Simple implementation: connect from center to center
-    const fromPoint = {
-      x: fromNode.position.x + (fromNode.width || 0) / 2,
-      y: fromNode.position.y + (fromNode.height || 0) / 2,
+    // Find handle positions using DOM if a container is available
+    if (this.container) {
+      // Try to locate handle elements in the DOM
+      const fromHandleElement = this.container.querySelector(
+        `[data-node-id="${edge.fromNodeId}"] [data-handle-id="${edge.fromHandleId}"]`
+      );
+      const toHandleElement = this.container.querySelector(
+        `[data-node-id="${edge.toNodeId}"] [data-handle-id="${edge.toHandleId}"]`
+      );
+
+      if (fromHandleElement && toHandleElement) {
+        // Get bounding client rects
+        const fromRect = fromHandleElement.getBoundingClientRect();
+        const toRect = toHandleElement.getBoundingClientRect();
+        const containerRect = this.container.getBoundingClientRect();
+
+        // Convert to canvas coordinates
+        const fromPoint = this.state.screenToCanvas({
+          x: fromRect.left + fromRect.width / 2 - containerRect.left,
+          y: fromRect.top + fromRect.height / 2 - containerRect.top,
+        });
+
+        const toPoint = this.state.screenToCanvas({
+          x: toRect.left + toRect.width / 2 - containerRect.left,
+          y: toRect.top + toRect.height / 2 - containerRect.top,
+        });
+
+        // Use the elbow connector algorithm to create a path between the handles
+        return createElbowConnector(
+          fromPoint,
+          toPoint,
+          {
+            x: fromNode.position.x,
+            y: fromNode.position.y,
+            width: fromNode.width || 0,
+            height: fromNode.height || 0,
+          },
+          {
+            x: toNode.position.x,
+            y: toNode.position.y,
+            width: toNode.width || 0,
+            height: toNode.height || 0,
+          }
+        );
+      }
+    }
+
+    // Fallback: Calculate positions based on the handle position property
+    // This is a simplified approach when DOM elements are not available
+    const getHandlePosition = (
+      node: Node,
+      handleId: string,
+      defaultPosition: "top" | "right" | "bottom" | "left" = "right"
+    ): Point => {
+      // Default positions based on handle position
+      switch (defaultPosition) {
+        case "top":
+          return {
+            x: node.position.x + (node.width || 0) / 2,
+            y: node.position.y,
+          };
+        case "right":
+          return {
+            x: node.position.x + (node.width || 0),
+            y: node.position.y + (node.height || 0) / 2,
+          };
+        case "bottom":
+          return {
+            x: node.position.x + (node.width || 0) / 2,
+            y: node.position.y + (node.height || 0),
+          };
+        case "left":
+          return {
+            x: node.position.x,
+            y: node.position.y + (node.height || 0) / 2,
+          };
+        default:
+          return {
+            x: node.position.x + (node.width || 0) / 2,
+            y: node.position.y + (node.height || 0) / 2,
+          };
+      }
     };
 
-    const toPoint = {
-      x: toNode.position.x + (toNode.width || 0) / 2,
-      y: toNode.position.y + (toNode.height || 0) / 2,
-    };
+    // Use estimation based on handle IDs
+    // In a real implementation, you'd want to store handle positions in the node data
+    // This is a simplified approach
+    let fromPosition: "top" | "right" | "bottom" | "left" = "right";
+    let toPosition: "top" | "right" | "bottom" | "left" = "left";
+
+    // Try to guess position from handle ID if it contains position hints
+    if (edge.fromHandleId.includes("right")) fromPosition = "right";
+    else if (edge.fromHandleId.includes("left")) fromPosition = "left";
+    else if (edge.fromHandleId.includes("top")) fromPosition = "top";
+    else if (edge.fromHandleId.includes("bottom")) fromPosition = "bottom";
+
+    if (edge.toHandleId.includes("right")) toPosition = "right";
+    else if (edge.toHandleId.includes("left")) toPosition = "left";
+    else if (edge.toHandleId.includes("top")) toPosition = "top";
+    else if (edge.toHandleId.includes("bottom")) toPosition = "bottom";
+
+    const fromPoint = getHandlePosition(
+      fromNode,
+      edge.fromHandleId,
+      fromPosition
+    );
+    const toPoint = getHandlePosition(toNode, edge.toHandleId, toPosition);
 
     // Use the elbow connector algorithm to create a path
     return createElbowConnector(

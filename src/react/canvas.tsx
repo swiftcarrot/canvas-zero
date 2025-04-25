@@ -6,8 +6,8 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type { Node, CanvasState } from "../state";
-import type { Point } from "../types";
+import type { CanvasState } from "../state";
+import type { Node, Edge, Point } from "../types";
 import { SelectionBox } from "./selection";
 import { CanvasContext } from "./context";
 import { NodeRenderer, type CustomNodeProps } from "./node";
@@ -49,9 +49,9 @@ export function Canvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Force a re-render whenever canvas state changes
   const updateCanvas = useCallback(() => {
-    // Notify parent component about state changes
+    console.log("updatecanvas");
+
     if (onStateChange) {
       const { nodes, edges } = editor.state;
       onStateChange({ nodes, edges });
@@ -202,6 +202,16 @@ export function Canvas({
     [editor, getCanvasPoint, updateCanvas]
   );
 
+  // Edge interaction handler
+  const handleEdgeInteraction = useCallback(
+    (e: React.MouseEvent, edge: Edge) => {
+      // Currently just selects the edge, but could be extended for edge manipulation
+      editor.select([], [edge.id], !e.shiftKey);
+      updateCanvas();
+    },
+    [editor, updateCanvas]
+  );
+
   useEffect(() => {
     if (containerRef.current) {
       editor.setContainer(containerRef.current);
@@ -284,6 +294,7 @@ export function Canvas({
                 edge={edge}
                 editor={editor}
                 edgeTypes={edgeTypes}
+                onEdgeInteraction={handleEdgeInteraction}
               />
             ))}
           </g>
