@@ -21,6 +21,7 @@ export interface CanvasProps {
   nodeTypes?: Record<string, React.ComponentType<CustomNodeProps>>;
   edgeTypes?: Record<string, React.ComponentType<CustomEdgeProps>>;
   children?: ReactNode;
+  editorRef?: React.RefObject<Editor | null>;
 }
 
 export function Canvas({
@@ -31,11 +32,20 @@ export function Canvas({
   children,
   nodeTypes,
   edgeTypes,
+  editorRef, // TODO: canvas ref?
 }: CanvasProps) {
   // Create editor with initial state if provided
   const [editor] = useState(
     () => new Editor(state ? { nodes: state.nodes, edges: state.edges } : {})
   );
+
+  // Assign editor to provided ref
+  useEffect(() => {
+    if (editorRef) {
+      editorRef.current = editor;
+    }
+  }, [editor, editorRef]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -192,14 +202,12 @@ export function Canvas({
     [editor, getCanvasPoint, updateCanvas]
   );
 
-  // Set up container ref and event listeners
   useEffect(() => {
     if (containerRef.current) {
       editor.setContainer(containerRef.current);
     }
   }, [editor]);
 
-  // Calculate selection box coordinates for rendering
   const renderSelectionBox = selectionBox?.visible
     ? {
         x: Math.min(selectionBox.start.x, selectionBox.current.x),
@@ -209,7 +217,6 @@ export function Canvas({
       }
     : null;
 
-  // Apply viewport transform for SVG elements
   const viewportTransform = `translate(${
     -editor.state.viewport.rect.x * editor.state.viewport.zoom
   }, ${-editor.state.viewport.rect.y * editor.state.viewport.zoom}) scale(${
@@ -258,7 +265,6 @@ export function Canvas({
           }}
         />
 
-        {/* SVG layer for edge rendering */}
         <svg
           ref={svgRef}
           style={{
@@ -283,7 +289,6 @@ export function Canvas({
           </g>
         </svg>
 
-        {/* Nodes */}
         <div
           style={{
             position: "absolute",

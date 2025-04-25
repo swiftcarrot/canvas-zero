@@ -16,12 +16,10 @@ export class Editor {
     this.state = new CanvasState(options);
   }
 
-  // Set the containing element for the canvas
   setContainer(container: HTMLElement) {
     this.container = container;
   }
 
-  // Create a new node on the canvas
   createNode(
     type: string,
     position: Point,
@@ -42,7 +40,6 @@ export class Editor {
     return node;
   }
 
-  // Create an edge connecting two nodes
   createEdge(
     fromNodeId: string,
     toNodeId: string,
