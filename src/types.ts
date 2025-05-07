@@ -24,8 +24,8 @@ export interface Node {
   id: string;
   type: string;
   position: Point;
-  width?: number;
-  height?: number;
+  width: number; // TODO: support auto size node
+  height: number;
   data: {
     label?: string;
     content?: string;

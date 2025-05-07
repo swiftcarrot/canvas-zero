@@ -6,12 +6,13 @@ import { EventEmitter } from "./event-emitter";
 
 export class Editor {
   state: CanvasState;
-  container: HTMLElement | null = null;
+  container: HTMLElement;
   events: EventEmitter;
 
-  constructor(options: CanvasStateOptions = {}) {
+  constructor(options: CanvasStateOptions = {}, container: HTMLElement) {
     this.state = new CanvasState(options);
     this.events = new EventEmitter();
+    this.container = container;
   }
 
   public snapToGrid(value: number): number {
@@ -23,10 +24,6 @@ export class Editor {
       x: this.snapToGrid(point.x),
       y: this.snapToGrid(point.y),
     };
-  }
-
-  setContainer(container: HTMLElement) {
-    this.container = container;
   }
 
   private triggerUpdate(eventType: string, payload?: any) {
@@ -407,15 +404,12 @@ export class Editor {
     let rect1: Rectangle | undefined;
     let rect2: Rectangle | undefined;
 
-    if (!this.container) return [];
-
     const fromNode = edge.fromNodeId
       ? this.state.getNodeById(edge.fromNodeId)
-      : undefined;
-    const toNode = edge.toNodeId
-      ? this.state.getNodeById(edge.toNodeId)
-      : undefined;
+      : null;
+    const toNode = edge.toNodeId ? this.state.getNodeById(edge.toNodeId) : null;
 
+    // TODO: reduce number of queries to the DOM
     const containerRect = this.container.getBoundingClientRect();
 
     if (fromNode) {
@@ -431,8 +425,8 @@ export class Editor {
         rect1 = {
           x: fromNode.position.x,
           y: fromNode.position.y,
-          width: fromNode.width || 0,
-          height: fromNode.height || 0,
+          width: fromNode.width,
+          height: fromNode.height,
         };
       }
     }
@@ -451,13 +445,12 @@ export class Editor {
         rect2 = {
           x: toNode.position.x,
           y: toNode.position.y,
-          width: toNode.width || 0,
-          height: toNode.height || 0,
+          width: toNode.width,
+          height: toNode.height,
         };
       }
     }
 
-    // If p1 or p2 are still undefined, we can't draw the path.
     if (!p1 || !p2) {
       return [];
     }

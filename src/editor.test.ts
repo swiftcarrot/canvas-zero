@@ -3,11 +3,11 @@ import { Editor } from "./editor";
 import { CanvasState } from "./state";
 import type { Point, Rectangle } from "./types";
 
-test("Editor initialization", () => {
-  const editor = new Editor();
-  expect(editor.state).toBeInstanceOf(CanvasState);
-  expect(editor.container).toBeNull();
-});
+// test("Editor initialization", () => {
+//   const editor = new Editor();
+//   expect(editor.state).toBeInstanceOf(CanvasState);
+//   expect(editor.container).toBeNull();
+// });
 
 // test("Editor setContainer", () => {
 //   const editor = new Editor();

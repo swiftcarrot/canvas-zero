@@ -48,7 +48,7 @@ export function EdgeRenderer({
           d={pathString}
           fill="none"
           stroke={isSelected ? "#3182ce" : "#64748b"}
-          strokeWidth={isSelected ? 2 : 1}
+          strokeWidth={isSelected ? 2 : 2}
           pointerEvents="stroke"
         />
       )}

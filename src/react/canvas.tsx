@@ -30,33 +30,41 @@ export interface CanvasProps {
 export function Canvas({
   style,
   className,
-  state,
+  state: initialState, // Renamed to avoid conflict with component state
   onStateChange,
   children,
   nodeTypes: customNodeTypes,
   edgeTypes,
   editorRef, // TODO: canvas ref?
 }: CanvasProps) {
-  const [editor] = useState(
-    () => new Editor(state ? { nodes: state.nodes, edges: state.edges } : {})
-  );
+  const [editor, setEditor] = useState<Editor | null>(null);
 
   const nodeTypes = {
     group: GroupNode,
     ...customNodeTypes,
   };
 
-  useEffect(() => {
-    if (editorRef) {
-      editorRef.current = editor;
-    }
-  }, [editor, editorRef]);
-
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
+  useEffect(() => {
+    if (containerRef.current) {
+      const newEditor = new Editor(
+        initialState
+          ? { nodes: initialState.nodes, edges: initialState.edges }
+          : {},
+        containerRef.current
+      );
+      setEditor(newEditor);
+      if (editorRef) {
+        editorRef.current = newEditor;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialState?.nodes, initialState?.edges, editorRef]); // editorRef is stable
+
   const updateCanvas = useCallback(() => {
-    if (onStateChange) {
+    if (onStateChange && editor) {
       const { nodes, edges } = editor.state;
       onStateChange({ nodes, edges });
     }
@@ -64,6 +72,7 @@ export function Canvas({
 
   // Subscribe to canvas update events from the Editor's event emitter
   useEffect(() => {
+    if (!editor) return;
     const handleCanvasUpdate = (data: any) => {
       if (data.type === "node-created") {
         updateCanvas();
@@ -78,10 +87,10 @@ export function Canvas({
   }, [editor, updateCanvas]);
 
   useEffect(() => {
-    if (state) {
-      editor.updateState(state);
+    if (editor && initialState) {
+      editor.updateState(initialState);
     }
-  }, [editor, state]);
+  }, [editor, initialState]);
 
   const [selectionBox, setSelectionBox] = useState<{
     start: Point;
@@ -91,7 +100,7 @@ export function Canvas({
 
   const getCanvasPoint = useCallback(
     (e: React.PointerEvent): Point => {
-      if (!containerRef.current) return { x: 0, y: 0 };
+      if (!containerRef.current || !editor) return { x: 0, y: 0 };
 
       const rect = containerRef.current.getBoundingClientRect();
       const screenPoint = {
@@ -106,6 +115,7 @@ export function Canvas({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (!editor) return;
       if (e.button === 0) {
         if (e.altKey || e.metaKey) {
           const point = { x: e.clientX, y: e.clientY };
@@ -131,6 +141,7 @@ export function Canvas({
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      if (!editor) return;
       const point = { x: e.clientX, y: e.clientY };
 
       if (editor.state.isPanning) {
@@ -170,6 +181,7 @@ export function Canvas({
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
+      if (!editor) return;
       if (editor.state.isPanning) {
         editor.stopPan();
       }
@@ -187,14 +199,17 @@ export function Canvas({
       // e.preventDefault();
       // const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
       // const point = { x: e.clientX, y: e.clientY };
-      // editor.zoom(zoomFactor, point);
-      // updateCanvas();
+      // if (editor) {
+      //   editor.zoom(zoomFactor, point);
+      //   updateCanvas();
+      // }
     },
     [editor, updateCanvas]
   );
 
   const handleNodeInteraction = useCallback(
     (e: React.PointerEvent, node: Node) => {
+      if (!editor) return;
       const canvasPoint = getCanvasPoint(e); // Already snapped
       editor.startNodeDrag(node.id, canvasPoint);
       updateCanvas();
@@ -204,6 +219,7 @@ export function Canvas({
 
   const handleEdgeInteraction = useCallback(
     (e: React.PointerEvent, edge: Edge) => {
+      if (!editor) return;
       // Currently just selects the edge, but could be extended for edge manipulation
       editor.select([], [edge.id], !e.shiftKey);
       updateCanvas();
@@ -211,11 +227,34 @@ export function Canvas({
     [editor, updateCanvas]
   );
 
-  useEffect(() => {
-    if (containerRef.current) {
-      editor.setContainer(containerRef.current);
-    }
-  }, [editor]);
+  // This useEffect is no longer needed as container is passed in constructor
+  // useEffect(() => {
+  //   if (containerRef.current && editor) {
+  //     editor.setContainer(containerRef.current);
+  //   }
+  // }, [editor]);
+
+  if (!editor) {
+    // Render a loading state or null while editor is being initialized
+    return (
+      <div
+        ref={containerRef}
+        className={className}
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          width: "100%",
+          height: "100%",
+          backgroundColor: "#f7fafc",
+          ...style,
+        }}
+        // Add touch-action none here as well for consistency before editor loads
+        touch-action="none"
+      >
+        {/* Optionally, render a loading indicator */}
+      </div>
+    );
+  }
 
   const renderSelectionBox = selectionBox?.visible
     ? {
