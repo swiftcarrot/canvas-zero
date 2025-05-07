@@ -5,7 +5,7 @@ import type { Point } from "../types";
 
 export interface HandleProps {
   id?: string;
-  position?: "top" | "right" | "bottom" | "left";
+  position?: "top" | "right" | "bottom" | "left"; // TODO: support handle with default position
   type?: string;
   isValidConnection?: (nodeId: string, handleId: string) => boolean;
   style?: React.CSSProperties;
@@ -14,10 +14,8 @@ export interface HandleProps {
 
 export function Handle({
   id = "default",
-  position = "right",
   type = "default",
   isValidConnection,
-  style,
   className,
 }: HandleProps) {
   const { editor, updateCanvas } = useCanvas();
@@ -41,68 +39,58 @@ export function Handle({
     return null;
   }, []);
 
-  const getPositionStyles = useCallback(() => {
-    switch (position) {
-      case "top":
-        return { top: -5, left: "50%", transform: "translateX(-50%)" };
-      case "right":
-        return { right: -5, top: "50%", transform: "translateY(-50%)" };
-      case "bottom":
-        return { bottom: -5, left: "50%", transform: "translateX(-50%)" };
-      case "left":
-        return { left: -5, top: "50%", transform: "translateY(-50%)" };
-      default:
-        return { right: -5, top: "50%", transform: "translateY(-50%)" };
-    }
-  }, [position]);
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
       e.stopPropagation();
       const nodeId = getParentNodeId();
       if (!nodeId) return;
 
       setIsDragging(true);
 
-      // Create a temporary edge for visual feedback during dragging
-      const dummyEdgeId = generateId("edge-temp-");
-      const dummyNodeId = generateId("node-temp-");
+      // Capture pointer to ensure all pointer events go to this element
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
-      // Add dummy node at cursor position for the edge to connect to
-      const rect = (e.target as HTMLElement).getBoundingClientRect();
-      const point: Point = {
-        x: e.clientX,
-        y: e.clientY,
+      // Create a temporary edge for visual feedback during dragging
+      const tempEdgeId = generateId("edge-temp-");
+
+      // Get source handle position
+      const sourceElement = e.target as HTMLElement;
+      const sourceRect = sourceElement.getBoundingClientRect();
+      const containerRect = editor.container?.getBoundingClientRect();
+
+      if (!containerRect) return;
+
+      const sourcePoint = editor.state.screenToCanvas({
+        x: sourceRect.left + sourceRect.width / 2 - containerRect.left,
+        y: sourceRect.top + sourceRect.height / 2 - containerRect.top,
+      });
+
+      // Initial target point is at cursor position
+      const targetPoint = editor.state.screenToCanvas({
+        x: e.clientX - containerRect.left,
+        y: e.clientY - containerRect.top,
+      });
+
+      const tempEdge = {
+        id: tempEdgeId,
+        type: "default",
+        from: sourcePoint,
+        to: targetPoint,
+        fromNodeId: nodeId,
+        fromHandleId: id,
       };
 
-      const dummyNode = editor.createNode(
-        "__dummy__",
-        {
-          x: point.x,
-          y: point.y,
-        },
-        {},
-        1,
-        1
-      );
+      console.log("Creating temporary edge:", tempEdge);
 
-      // Create a temporary edge
-      const tempEdge = editor.createEdge(
-        nodeId,
-        dummyNode.id,
-        id,
-        "default",
-        "default"
-      );
+      editor.state.edges.push(tempEdge);
 
-      // Setup global mouse move and mouse up handlers
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        // Update the position of the dummy node to follow the cursor
-        const node = editor.state.getNodeById(dummyNode.id);
-        if (node) {
-          editor.moveNode(dummyNode.id, {
-            x: moveEvent.clientX,
-            y: moveEvent.clientY,
+      // Setup global pointer move and pointer up handlers
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        // Update the target point to follow the cursor
+        if (tempEdge) {
+          tempEdge.to = editor.state.screenToCanvas({
+            x: moveEvent.clientX - containerRect.left,
+            y: moveEvent.clientY - containerRect.top,
           });
 
           // Check if we're over a valid target node
@@ -110,6 +98,7 @@ export function Handle({
             moveEvent.clientX,
             moveEvent.clientY
           );
+
           if (elemBelow) {
             // Try to find a handle element
             const handleElement = elemBelow.closest("[data-handle-id]");
@@ -142,12 +131,13 @@ export function Handle({
         }
       };
 
-      const handleMouseUp = () => {
+      const handlePointerUp = () => {
         setIsDragging(false);
 
-        // Remove the temporary edge and node
-        editor.deleteEdge(tempEdge?.id || "");
-        editor.deleteNode(dummyNode.id);
+        // Remove the temporary edge
+        editor.state.edges = editor.state.edges.filter(
+          (edge) => edge.id !== tempEdgeId
+        );
 
         // If we have a valid target, create the real edge
         if (targetNodeRef.current && targetValid) {
@@ -164,36 +154,19 @@ export function Handle({
         targetHandleRef.current = null;
 
         // Clean up event listeners
-        window.removeEventListener("mousemove", handleMouseMove);
-        window.removeEventListener("mouseup", handleMouseUp);
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
 
         updateCanvas();
       };
 
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
 
       updateCanvas();
     },
     [editor, getParentNodeId, id, isValidConnection, updateCanvas]
   );
-
-  // Set base styles for the handle
-  const baseStyles: React.CSSProperties = {
-    position: "absolute",
-    width: "10px",
-    height: "10px",
-    borderRadius: "50%",
-    backgroundColor: targetValid ? "#3182ce" : "#e53e3e",
-    border: "2px solid white",
-    cursor: "crosshair",
-    zIndex: 5,
-    ...getPositionStyles(),
-    ...(isDragging
-      ? { transform: `${getPositionStyles().transform} scale(1.2)` }
-      : {}),
-    ...style,
-  };
 
   return (
     <div
@@ -201,7 +174,7 @@ export function Handle({
       data-handle-id={id}
       data-handle-type={type}
       className={className}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
     />
   );
 }

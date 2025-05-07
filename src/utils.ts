@@ -42,3 +42,38 @@ export function simplifyPath(path: Point[]) {
 export function generateId(prefix: string = ""): string {
   return `${prefix}${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 }
+
+export function isPointInAnyRectangle(
+  point: Point,
+  rectangles: Rectangle[]
+): boolean {
+  return rectangles.some(
+    (rect) =>
+      point.x >= rect.x &&
+      point.x <= rect.x + rect.width &&
+      point.y >= rect.y &&
+      point.y <= rect.y + rect.height
+  );
+}
+
+export function isPointInBounds(point: Point, bounds: Rectangle): boolean {
+  return (
+    point.x >= bounds.x &&
+    point.x <= bounds.x + bounds.width &&
+    point.y >= bounds.y &&
+    point.y <= bounds.y + bounds.height
+  );
+}
+
+export const GRID_SIZE = 10; // 10px grid by default, TODO: make this configurable via editor options
+
+export const snapToGrid = (value: number): number => {
+  return Math.round(value / GRID_SIZE) * GRID_SIZE;
+};
+
+export const snapPointToGrid = (point: { x: number; y: number }) => {
+  return {
+    x: snapToGrid(point.x),
+    y: snapToGrid(point.y),
+  };
+};

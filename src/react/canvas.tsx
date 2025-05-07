@@ -14,6 +14,7 @@ import { NodeRenderer, type CustomNodeProps } from "./node";
 import { EdgeRenderer, type CustomEdgeProps } from "./edge";
 import { GroupNode } from "./group-node";
 import { GroupActionButton } from "./group-action-button";
+import { BackgroundGrid } from "./background-grid";
 
 export interface CanvasProps {
   style?: React.CSSProperties;
@@ -106,26 +107,19 @@ export function Canvas({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (e.button === 0) {
-        // Left click
         if (e.altKey || e.metaKey) {
-          // Pan with alt/cmd key or middle mouse
           const point = { x: e.clientX, y: e.clientY };
           editor.startPan(point);
         } else {
-          // Start selection box
           const canvasPoint = getCanvasPoint(e);
           setSelectionBox({
             start: canvasPoint,
             current: canvasPoint,
-            visible: false, // Only show after some movement
+            visible: false,
           });
-
-          // Clear selection if clicking on empty space
           editor.select([], [], true);
         }
       } else if (e.button === 1) {
-        // Middle mouse button
-        // Pan with middle mouse
         const point = { x: e.clientX, y: e.clientY };
         editor.startPan(point);
       }
@@ -152,24 +146,19 @@ export function Canvas({
         return;
       }
 
-      // Update selection box
       if (selectionBox) {
         const canvasPoint = getCanvasPoint(e);
         setSelectionBox({
           ...selectionBox,
           current: canvasPoint,
-          visible: true, // Make visible during drag
+          visible: true,
         });
-
-        // Calculate selection rectangle
         const x = Math.min(selectionBox.start.x, canvasPoint.x);
         const y = Math.min(selectionBox.start.y, canvasPoint.y);
         const width = Math.abs(selectionBox.start.x - canvasPoint.x);
         const height = Math.abs(selectionBox.start.y - canvasPoint.y);
 
-        // Select elements within the box
         if (width > 5 || height > 5) {
-          // Small threshold to avoid accidental selections
           editor.selectByRect({ x, y, width, height });
           updateCanvas();
         }
@@ -183,12 +172,9 @@ export function Canvas({
       if (editor.state.isPanning) {
         editor.stopPan();
       }
-
       if (editor.state.isDragging) {
         editor.stopDrag();
       }
-
-      // Clear selection box
       setSelectionBox(null);
       updateCanvas();
     },
@@ -266,28 +252,7 @@ export function Canvas({
         onPointerCancel={handlePointerUp}
         touch-action="none"
       >
-        {/* Background grid */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundImage: "radial-gradient(#cbd5e0 1px, transparent 0)",
-            backgroundSize: `${20 * editor.state.viewport.zoom}px ${
-              20 * editor.state.viewport.zoom
-            }px`,
-            backgroundPosition: `${
-              (-editor.state.viewport.rect.x * editor.state.viewport.zoom) %
-              (20 * editor.state.viewport.zoom)
-            }px ${
-              (-editor.state.viewport.rect.y * editor.state.viewport.zoom) %
-              (20 * editor.state.viewport.zoom)
-            }px`,
-            transform: "translate(0px, 0px)",
-          }}
-        />
+        <BackgroundGrid viewport={editor.state.viewport} />
 
         <svg
           ref={svgRef}
