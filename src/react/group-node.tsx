@@ -6,7 +6,7 @@ interface GroupNodeProps {
   node: Node;
   editor: Editor;
   isSelected: boolean;
-  onNodeInteraction: (event: React.MouseEvent, node: Node) => void;
+  onNodeInteraction: (event: React.PointerEvent, node: Node) => void;
 }
 
 export function GroupNode({

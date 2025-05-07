@@ -98,8 +98,8 @@ export function Canvas({
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
       };
-
-      return editor.state.screenToCanvas(screenPoint);
+      // Snap the point to the grid after converting to canvas coordinates
+      return editor.snapPointToGrid(editor.state.screenToCanvas(screenPoint));
     },
     [editor]
   );
@@ -111,7 +111,7 @@ export function Canvas({
           const point = { x: e.clientX, y: e.clientY };
           editor.startPan(point);
         } else {
-          const canvasPoint = getCanvasPoint(e);
+          const canvasPoint = getCanvasPoint(e); // Already snapped by getCanvasPoint
           setSelectionBox({
             start: canvasPoint,
             current: canvasPoint,
@@ -140,14 +140,14 @@ export function Canvas({
       }
 
       if (editor.state.isDragging) {
-        const canvasPoint = getCanvasPoint(e);
+        const canvasPoint = getCanvasPoint(e); // Already snapped
         editor.dragNodes(canvasPoint);
         updateCanvas();
         return;
       }
 
       if (selectionBox) {
-        const canvasPoint = getCanvasPoint(e);
+        const canvasPoint = getCanvasPoint(e); // Already snapped
         setSelectionBox({
           ...selectionBox,
           current: canvasPoint,
@@ -159,6 +159,7 @@ export function Canvas({
         const height = Math.abs(selectionBox.start.y - canvasPoint.y);
 
         if (width > 5 || height > 5) {
+          // selectByRect in editor should handle snapping of the rect itself
           editor.selectByRect({ x, y, width, height });
           updateCanvas();
         }
@@ -194,7 +195,7 @@ export function Canvas({
 
   const handleNodeInteraction = useCallback(
     (e: React.PointerEvent, node: Node) => {
-      const canvasPoint = getCanvasPoint(e);
+      const canvasPoint = getCanvasPoint(e); // Already snapped
       editor.startNodeDrag(node.id, canvasPoint);
       updateCanvas();
     },

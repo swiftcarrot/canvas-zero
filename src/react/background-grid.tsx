@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import type { CanvasState } from "../state";
+import { GRID_SIZE } from "../utils";
 
 export interface BackgroundGridProps {
   viewport: CanvasState["viewport"];
@@ -14,10 +15,14 @@ export function BackgroundGrid({ viewport }: BackgroundGridProps) {
       right: 0,
       bottom: 0,
       backgroundImage: "radial-gradient(#cbd5e0 1px, transparent 0)",
-      backgroundSize: `${20 * viewport.zoom}px ${20 * viewport.zoom}px`,
+      backgroundSize: `${GRID_SIZE * viewport.zoom}px ${
+        GRID_SIZE * viewport.zoom
+      }px`,
       backgroundPosition: `${
-        (-viewport.rect.x * viewport.zoom) % (20 * viewport.zoom)
-      }px ${(-viewport.rect.y * viewport.zoom) % (20 * viewport.zoom)}px`,
+        (-viewport.rect.x * viewport.zoom) % (GRID_SIZE * viewport.zoom)
+      }px ${
+        (-viewport.rect.y * viewport.zoom) % (GRID_SIZE * viewport.zoom)
+      }px`,
       transform: "translate(0px, 0px)",
     } as const;
   }, [viewport]);

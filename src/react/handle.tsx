@@ -60,16 +60,20 @@ export function Handle({
 
       if (!containerRect) return;
 
-      const sourcePoint = editor.state.screenToCanvas({
-        x: sourceRect.left + sourceRect.width / 2 - containerRect.left,
-        y: sourceRect.top + sourceRect.height / 2 - containerRect.top,
-      });
+      const sourcePoint = editor.snapPointToGrid(
+        editor.state.screenToCanvas({
+          x: sourceRect.left + sourceRect.width / 2 - containerRect.left,
+          y: sourceRect.top + sourceRect.height / 2 - containerRect.top,
+        })
+      );
 
       // Initial target point is at cursor position
-      const targetPoint = editor.state.screenToCanvas({
-        x: e.clientX - containerRect.left,
-        y: e.clientY - containerRect.top,
-      });
+      const targetPoint = editor.snapPointToGrid(
+        editor.state.screenToCanvas({
+          x: e.clientX - containerRect.left,
+          y: e.clientY - containerRect.top,
+        })
+      );
 
       const tempEdge = {
         id: tempEdgeId,
@@ -80,18 +84,18 @@ export function Handle({
         fromHandleId: id,
       };
 
-      console.log("Creating temporary edge:", tempEdge);
-
       editor.state.edges.push(tempEdge);
 
       // Setup global pointer move and pointer up handlers
       const handlePointerMove = (moveEvent: PointerEvent) => {
         // Update the target point to follow the cursor
         if (tempEdge) {
-          tempEdge.to = editor.state.screenToCanvas({
-            x: moveEvent.clientX - containerRect.left,
-            y: moveEvent.clientY - containerRect.top,
-          });
+          tempEdge.to = editor.snapPointToGrid(
+            editor.state.screenToCanvas({
+              x: moveEvent.clientX - containerRect.left,
+              y: moveEvent.clientY - containerRect.top,
+            })
+          );
 
           // Check if we're over a valid target node
           const elemBelow = document.elementFromPoint(

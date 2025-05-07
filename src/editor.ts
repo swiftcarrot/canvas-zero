@@ -1,7 +1,7 @@
 import { CanvasState, type CanvasStateOptions } from "./state";
 import type { Node, Edge, Point, Rectangle } from "./types";
 import { createElbowConnector } from "./elbow-connector";
-import { generateId, rectanglesOverlap } from "./utils";
+import { generateId, GRID_SIZE, rectanglesOverlap } from "./utils";
 import { EventEmitter } from "./event-emitter";
 
 export class Editor {
@@ -12,6 +12,17 @@ export class Editor {
   constructor(options: CanvasStateOptions = {}) {
     this.state = new CanvasState(options);
     this.events = new EventEmitter();
+  }
+
+  public snapToGrid(value: number): number {
+    return Math.round(value / GRID_SIZE) * GRID_SIZE;
+  }
+
+  public snapPointToGrid(point: Point): Point {
+    return {
+      x: this.snapToGrid(point.x),
+      y: this.snapToGrid(point.y),
+    };
   }
 
   setContainer(container: HTMLElement) {
@@ -29,12 +40,16 @@ export class Editor {
     width = 100,
     height = 80
   ): Node {
+    const snappedPosition = this.snapPointToGrid(position);
+    const snappedWidth = this.snapToGrid(width);
+    const snappedHeight = this.snapToGrid(height);
+
     const node: Node = {
       id: generateId("node-"),
       type,
-      position,
-      width,
-      height,
+      position: snappedPosition,
+      width: snappedWidth,
+      height: snappedHeight,
       data,
     };
 
@@ -77,22 +92,25 @@ export class Editor {
   moveNode(nodeId: string, newPosition: Point): void {
     const node = this.state.getNodeById(nodeId);
     if (node) {
-      node.position = newPosition;
+      node.position = this.snapPointToGrid(newPosition);
       // Update any connected edges
       this.updateEdgesForNode(nodeId);
-      this.triggerUpdate("node-moved", { nodeId, position: newPosition });
+      this.triggerUpdate("node-moved", { nodeId, position: node.position });
     }
   }
 
   // Move multiple nodes at once (useful for selection)
   moveNodes(nodeIds: string[], deltaX: number, deltaY: number): void {
+    const snappedDeltaX = this.snapToGrid(deltaX);
+    const snappedDeltaY = this.snapToGrid(deltaY);
+
     nodeIds.forEach((nodeId) => {
       const node = this.state.getNodeById(nodeId);
       if (node) {
-        node.position = {
-          x: node.position.x + deltaX,
-          y: node.position.y + deltaY,
-        };
+        node.position = this.snapPointToGrid({
+          x: node.position.x + snappedDeltaX,
+          y: node.position.y + snappedDeltaY,
+        });
       }
     });
 
@@ -100,7 +118,7 @@ export class Editor {
     nodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
     this.triggerUpdate("nodes-moved", {
       nodeIds,
-      delta: { x: deltaX, y: deltaY },
+      delta: { x: snappedDeltaX, y: snappedDeltaY },
     });
   }
 
@@ -115,11 +133,14 @@ export class Editor {
   resizeNode(nodeId: string, width: number, height: number): void {
     const node = this.state.getNodeById(nodeId);
     if (node) {
-      node.width = width;
-      node.height = height;
+      node.width = this.snapToGrid(width);
+      node.height = this.snapToGrid(height);
       // Update any connected edges as the connection points may have changed
       this.updateEdgesForNode(nodeId);
-      this.triggerUpdate("node-resized", { nodeId, size: { width, height } });
+      this.triggerUpdate("node-resized", {
+        nodeId,
+        size: { width: node.width, height: node.height },
+      });
     }
   }
 
@@ -243,7 +264,12 @@ export class Editor {
   // Select items by area (a rectangular selection box)
   selectByRect(rect: Rectangle): void {
     // Convert screen coordinates to canvas coordinates if needed
-    const canvasRect = rect;
+    const snappedRect: Rectangle = {
+      x: this.snapToGrid(rect.x),
+      y: this.snapToGrid(rect.y),
+      width: this.snapToGrid(rect.width),
+      height: this.snapToGrid(rect.height),
+    };
 
     // Find nodes within the selection rectangle
     const selectedNodes = this.state.nodes.filter((node) => {
@@ -254,12 +280,13 @@ export class Editor {
         height: node.height || 0,
       };
 
-      return rectanglesOverlap(canvasRect, nodeRect);
+      return rectanglesOverlap(snappedRect, nodeRect);
     });
 
     // Find edges within the selection rectangle (simplified for now)
     // A more accurate version would check if the edge path intersects with the rectangle
     const selectedEdges = this.state.edges.filter((edge) => {
+      if (!edge.fromNodeId || !edge.toNodeId) return false; // Add this check
       const fromNode = this.state.getNodeById(edge.fromNodeId);
       const toNode = this.state.getNodeById(edge.toNodeId);
 
@@ -281,8 +308,8 @@ export class Editor {
 
       // If both connected nodes are in selection, include the edge
       return (
-        rectanglesOverlap(canvasRect, fromRect) &&
-        rectanglesOverlap(canvasRect, toRect)
+        rectanglesOverlap(snappedRect, fromRect) &&
+        rectanglesOverlap(snappedRect, toRect)
       );
     });
 
@@ -294,15 +321,15 @@ export class Editor {
     );
 
     // Update selection box
-    this.state.selection.box = rect;
-    this.triggerUpdate("selection-rect-changed", { rect });
+    this.state.selection.box = snappedRect;
+    this.triggerUpdate("selection-rect-changed", { rect: snappedRect });
   }
 
   // Start dragging a node
   startNodeDrag(nodeId: string, point: Point): void {
     this.state.draggingNode = nodeId;
     this.state.isDragging = true;
-    this.state.lastMousePosition = point;
+    this.state.lastMousePosition = this.snapPointToGrid(point);
 
     // If node is not in current selection, select it exclusively
     if (!this.state.selection.nodeIds.includes(nodeId)) {
@@ -316,15 +343,23 @@ export class Editor {
   dragNodes(point: Point): void {
     if (!this.state.isDragging || !this.state.lastMousePosition) return;
 
-    const deltaX = point.x - this.state.lastMousePosition.x;
-    const deltaY = point.y - this.state.lastMousePosition.y;
+    const snappedPoint = this.snapPointToGrid(point);
+
+    const deltaX = snappedPoint.x - this.state.lastMousePosition.x;
+    const deltaY = snappedPoint.y - this.state.lastMousePosition.y;
 
     // Move all selected nodes
+    // No need to snap deltaX/Y here if moveNodes snaps the final position or individual deltas.
+    // However, to ensure consistent snapping during drag, we can snap the deltas directly.
+    // Let's ensure moveNodes handles snapping correctly.
+    // For now, we pass potentially un-snapped deltas if lastMousePosition was snapped and current point is snapped.
+    // The alternative is to calculate deltas based on original positions and snap the final positions.
+    // Let's stick to snapping the point and letting moveNodes handle the rest.
     this.moveNodes(this.state.selection.nodeIds, deltaX, deltaY);
 
-    this.state.lastMousePosition = point;
+    this.state.lastMousePosition = snappedPoint;
 
-    this.triggerUpdate("nodes-dragged", { point });
+    this.triggerUpdate("nodes-dragged", { point: snappedPoint });
   }
 
   // Stop dragging
@@ -374,8 +409,6 @@ export class Editor {
 
     if (!this.container) return [];
 
-    console.log(edge);
-
     const fromNode = edge.fromNodeId
       ? this.state.getNodeById(edge.fromNodeId)
       : undefined;
@@ -424,6 +457,11 @@ export class Editor {
       }
     }
 
+    // If p1 or p2 are still undefined, we can't draw the path.
+    if (!p1 || !p2) {
+      return [];
+    }
+
     return createElbowConnector(p1, p2, rect1, rect2);
   }
 
@@ -455,10 +493,13 @@ export class Editor {
     );
 
     // Add some padding around the group
-    const padding = 20;
-    const groupWidth = maxX - minX + padding * 2;
-    const groupHeight = maxY - minY + padding * 2;
-    const groupPosition = { x: minX - padding, y: minY - padding };
+    const padding = this.snapToGrid(20); // Snap padding
+    const groupWidth = this.snapToGrid(maxX - minX + padding * 2);
+    const groupHeight = this.snapToGrid(maxY - minY + padding * 2);
+    const groupPosition = this.snapPointToGrid({
+      x: minX - padding,
+      y: minY - padding,
+    });
 
     // Create the group node
     const groupNode: Node = {
@@ -502,8 +543,13 @@ export class Editor {
     if (selectedNodeIds.length !== 1) {
       return null; // Can only ungroup one group at a time
     }
+    const groupId = selectedNodeIds[0];
+    if (!groupId) {
+      // Should not happen due to length check, but good for type safety
+      return null;
+    }
 
-    const groupNode = this.state.getNodeById(selectedNodeIds[0]);
+    const groupNode = this.state.getNodeById(groupId);
 
     if (
       !groupNode ||
