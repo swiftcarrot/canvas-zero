@@ -7,7 +7,7 @@ export interface CustomEdgeProps {
   editor: Editor;
   isSelected: boolean;
   points: Point[];
-  onEdgeInteraction: (event: React.MouseEvent, edge: Edge) => void;
+  onEdgeInteraction: (event: React.PointerEvent, edge: Edge) => void;
 }
 
 export function EdgeRenderer({
@@ -19,13 +19,13 @@ export function EdgeRenderer({
   edge: Edge;
   editor: Editor;
   edgeTypes?: Record<string, React.ComponentType<CustomEdgeProps>>;
-  onEdgeInteraction: (event: React.MouseEvent, edge: Edge) => void;
+  onEdgeInteraction: (event: React.PointerEvent, edge: Edge) => void;
 }) {
   const isSelected = editor.state.selection.edgeIds.includes(edge.id);
   const points = editor.getEdgePath(edge);
   const pathString = createSvgPath(points);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
     onEdgeInteraction(e, edge);
   };
@@ -34,7 +34,7 @@ export function EdgeRenderer({
   const CustomEdgeComponent = edgeTypes?.[edge.type];
 
   return (
-    <g onMouseDown={handleMouseDown} style={{ cursor: "pointer" }}>
+    <g onPointerDown={handlePointerDown} style={{ cursor: "pointer" }}>
       {CustomEdgeComponent ? (
         <CustomEdgeComponent
           edge={edge}

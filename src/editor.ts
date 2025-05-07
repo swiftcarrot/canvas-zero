@@ -2,17 +2,24 @@ import { CanvasState, type CanvasStateOptions } from "./state";
 import type { Node, Edge, Point, Rectangle } from "./types";
 import { createElbowConnector } from "./elbow-connector";
 import { generateId, rectanglesOverlap } from "./utils";
+import { EventEmitter } from "./event-emitter";
 
 export class Editor {
   state: CanvasState;
   container: HTMLElement | null = null;
+  events: EventEmitter;
 
   constructor(options: CanvasStateOptions = {}) {
     this.state = new CanvasState(options);
+    this.events = new EventEmitter();
   }
 
   setContainer(container: HTMLElement) {
     this.container = container;
+  }
+
+  private triggerUpdate(eventType: string, payload?: any) {
+    this.events.emit("canvas:update", { type: eventType, ...payload });
   }
 
   createNode(
@@ -32,6 +39,8 @@ export class Editor {
     };
 
     this.state.nodes.push(node);
+    this.triggerUpdate("node-created", { node });
+
     return node;
   }
 
@@ -42,7 +51,6 @@ export class Editor {
     toHandleId: string = "default",
     type: string = "default"
   ): Edge | null {
-    // Verify that both nodes exist
     const fromNode = this.state.getNodeById(fromNodeId);
     const toNode = this.state.getNodeById(toNodeId);
 
@@ -60,6 +68,8 @@ export class Editor {
     };
 
     this.state.edges.push(edge);
+    this.triggerUpdate("edge-created", { edge });
+
     return edge;
   }
 
@@ -70,6 +80,7 @@ export class Editor {
       node.position = newPosition;
       // Update any connected edges
       this.updateEdgesForNode(nodeId);
+      this.triggerUpdate("node-moved", { nodeId, position: newPosition });
     }
   }
 
@@ -87,6 +98,10 @@ export class Editor {
 
     // Update any connected edges
     nodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
+    this.triggerUpdate("nodes-moved", {
+      nodeIds,
+      delta: { x: deltaX, y: deltaY },
+    });
   }
 
   // Update edges connected to a specific node
@@ -104,6 +119,7 @@ export class Editor {
       node.height = height;
       // Update any connected edges as the connection points may have changed
       this.updateEdgesForNode(nodeId);
+      this.triggerUpdate("node-resized", { nodeId, size: { width, height } });
     }
   }
 
@@ -122,16 +138,19 @@ export class Editor {
     this.state.selection.nodeIds = this.state.selection.nodeIds.filter(
       (id) => id !== nodeId
     );
+
+    this.triggerUpdate("node-deleted", { nodeId });
   }
 
   // Delete an edge
   deleteEdge(edgeId: string): void {
+    const edge = this.state.getEdgeById(edgeId);
     this.state.edges = this.state.edges.filter((edge) => edge.id !== edgeId);
-
-    // Update selection if needed
     this.state.selection.edgeIds = this.state.selection.edgeIds.filter(
       (id) => id !== edgeId
     );
+
+    this.triggerUpdate("edge-deleted", { edgeId });
   }
 
   // Zoom the canvas view
@@ -174,6 +193,7 @@ export class Editor {
 
     // Set the new zoom level
     this.state.viewport.zoom = newZoom;
+    this.triggerUpdate("viewport-changed", { viewport: this.state.viewport });
   }
 
   // Pan the canvas view
@@ -183,6 +203,8 @@ export class Editor {
       x: this.state.viewport.rect.x - deltaX / this.state.viewport.zoom,
       y: this.state.viewport.rect.y - deltaY / this.state.viewport.zoom,
     };
+
+    this.triggerUpdate("viewport-changed", { viewport: this.state.viewport });
   }
 
   // Select nodes and edges (can be multiple)
@@ -205,6 +227,10 @@ export class Editor {
       ...this.state.selection.edgeIds,
       ...edgeIds.filter((id) => !this.state.selection.edgeIds.includes(id)),
     ];
+
+    this.triggerUpdate("selection-changed", {
+      selection: this.state.selection,
+    });
   }
 
   // Select all nodes and edges
@@ -269,6 +295,7 @@ export class Editor {
 
     // Update selection box
     this.state.selection.box = rect;
+    this.triggerUpdate("selection-rect-changed", { rect });
   }
 
   // Start dragging a node
@@ -281,6 +308,8 @@ export class Editor {
     if (!this.state.selection.nodeIds.includes(nodeId)) {
       this.select([nodeId], [], true);
     }
+
+    this.triggerUpdate("drag-started", { nodeId, point });
   }
 
   // Continue dragging nodes
@@ -294,6 +323,8 @@ export class Editor {
     this.moveNodes(this.state.selection.nodeIds, deltaX, deltaY);
 
     this.state.lastMousePosition = point;
+
+    this.triggerUpdate("nodes-dragged", { point });
   }
 
   // Stop dragging
@@ -302,12 +333,16 @@ export class Editor {
     this.state.draggingNode = null;
     this.state.draggingEdge = null;
     this.state.lastMousePosition = null;
+
+    this.triggerUpdate("drag-stopped");
   }
 
   // Start panning
   startPan(point: Point): void {
     this.state.isPanning = true;
     this.state.lastMousePosition = point;
+
+    this.triggerUpdate("pan-started", { point });
   }
 
   // Continue panning
@@ -318,14 +353,17 @@ export class Editor {
     const deltaY = point.y - this.state.lastMousePosition.y;
 
     this.pan(deltaX, deltaY);
-
     this.state.lastMousePosition = point;
+
+    this.triggerUpdate("pan-continued", { point });
   }
 
   // Stop panning
   stopPan(): void {
     this.state.isPanning = false;
     this.state.lastMousePosition = null;
+
+    this.triggerUpdate("pan-stopped");
   }
 
   getEdgePath(edge: Edge): Point[] {
@@ -461,6 +499,125 @@ export class Editor {
     );
   }
 
+  createGroup(nodeIds?: string[], edgeIds?: string[]): Node | null {
+    const selectedNodeIds = nodeIds || [...this.state.selection.nodeIds];
+    const selectedEdgeIds = edgeIds || [...this.state.selection.edgeIds];
+
+    if (selectedNodeIds.length <= 1) {
+      return null; // Need at least 2 nodes to form a group
+    }
+
+    // Find the bounds of all selected nodes
+    const selectedNodes = selectedNodeIds
+      .map((id) => this.state.getNodeById(id))
+      .filter(Boolean) as Node[];
+
+    if (selectedNodes.length === 0) {
+      return null;
+    }
+
+    // Calculate the bounding box that contains all selected nodes
+    const minX = Math.min(...selectedNodes.map((node) => node.position.x));
+    const minY = Math.min(...selectedNodes.map((node) => node.position.y));
+    const maxX = Math.max(
+      ...selectedNodes.map((node) => node.position.x + (node.width || 0))
+    );
+    const maxY = Math.max(
+      ...selectedNodes.map((node) => node.position.y + (node.height || 0))
+    );
+
+    // Add some padding around the group
+    const padding = 20;
+    const groupWidth = maxX - minX + padding * 2;
+    const groupHeight = maxY - minY + padding * 2;
+    const groupPosition = { x: minX - padding, y: minY - padding };
+
+    // Create the group node
+    const groupNode: Node = {
+      id: generateId("group-"),
+      type: "group",
+      position: groupPosition,
+      width: groupWidth,
+      height: groupHeight,
+      data: {
+        label: "Group",
+        childNodeIds: selectedNodeIds,
+        childEdgeIds: selectedEdgeIds,
+      },
+    };
+
+    // Adjust positions of child nodes to be relative to the group
+    // This keeps their visual positions the same but makes them children of the group
+    selectedNodes.forEach((node) => {
+      node.data = {
+        ...node.data,
+        parentId: groupNode.id,
+        originalPosition: { ...node.position }, // Store original position
+      };
+    });
+
+    // Add the group node to the state
+    this.state.nodes.push(groupNode);
+
+    // Select only the group node
+    this.select([groupNode.id], [], true);
+
+    this.triggerUpdate("group-created", { group: groupNode });
+
+    return groupNode;
+  }
+
+  // Ungroup a selected group node
+  ungroup(): Node[] | null {
+    const selectedNodeIds = [...this.state.selection.nodeIds];
+
+    if (selectedNodeIds.length !== 1) {
+      return null; // Can only ungroup one group at a time
+    }
+
+    const groupNode = this.state.getNodeById(selectedNodeIds[0]);
+
+    if (
+      !groupNode ||
+      groupNode.type !== "group" ||
+      !groupNode.data.childNodeIds
+    ) {
+      return null; // Not a group node
+    }
+
+    const childNodeIds = groupNode.data.childNodeIds as string[];
+    const childNodes = childNodeIds
+      .map((id) => this.state.getNodeById(id))
+      .filter(Boolean) as Node[];
+
+    if (childNodes.length === 0) {
+      return null;
+    }
+
+    // Remove parent reference from child nodes
+    childNodes.forEach((node) => {
+      if (node.data.parentId === groupNode.id) {
+        const { parentId, originalPosition, ...rest } = node.data;
+        node.data = rest;
+      }
+    });
+
+    // Remove the group node
+    this.state.nodes = this.state.nodes.filter(
+      (node) => node.id !== groupNode.id
+    );
+
+    // Select the ungrouped nodes
+    this.select(childNodeIds, [], true);
+
+    this.triggerUpdate("group-deleted", {
+      groupId: groupNode.id,
+      childNodeIds,
+    });
+
+    return childNodes;
+  }
+
   // Update the editor state with external state
   updateState(state: Partial<CanvasStateOptions>): void {
     if (state.nodes) {
@@ -472,5 +629,7 @@ export class Editor {
     if (state.viewport) {
       this.state.viewport = state.viewport;
     }
+
+    this.triggerUpdate("state-updated", { state });
   }
 }

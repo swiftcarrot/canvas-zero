@@ -4,29 +4,11 @@ import { generateId } from "../utils";
 import type { Point } from "../types";
 
 export interface HandleProps {
-  /**
-   * The ID of the handle, used to identify connection points
-   */
   id?: string;
-  /**
-   * Position of the handle, default is 'right'
-   */
   position?: "top" | "right" | "bottom" | "left";
-  /**
-   * Type of the handle, can be used for styling or validation
-   */
   type?: string;
-  /**
-   * Connection validation function
-   */
   isValidConnection?: (nodeId: string, handleId: string) => boolean;
-  /**
-   * Custom style for the handle
-   */
   style?: React.CSSProperties;
-  /**
-   * Custom className for the handle
-   */
   className?: string;
 }
 
@@ -45,7 +27,6 @@ export function Handle({
   const targetNodeRef = useRef<string | null>(null);
   const targetHandleRef = useRef<string | null>(null);
 
-  // Get the node ID this handle belongs to by traversing up the DOM
   const getParentNodeId = useCallback(() => {
     if (!handleRef.current) return null;
 
@@ -60,7 +41,6 @@ export function Handle({
     return null;
   }, []);
 
-  // Calculate position styles for each handle position
   const getPositionStyles = useCallback(() => {
     switch (position) {
       case "top":
@@ -221,7 +201,6 @@ export function Handle({
       data-handle-id={id}
       data-handle-type={type}
       className={className}
-      style={baseStyles}
       onMouseDown={handleMouseDown}
     />
   );

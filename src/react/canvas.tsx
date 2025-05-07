@@ -12,6 +12,8 @@ import { SelectionBox } from "./selection";
 import { CanvasContext } from "./context";
 import { NodeRenderer, type CustomNodeProps } from "./node";
 import { EdgeRenderer, type CustomEdgeProps } from "./edge";
+import { GroupNode } from "./group-node";
+import { GroupActionButton } from "./group-action-button";
 
 export interface CanvasProps {
   style?: React.CSSProperties;
@@ -30,16 +32,19 @@ export function Canvas({
   state,
   onStateChange,
   children,
-  nodeTypes,
+  nodeTypes: customNodeTypes,
   edgeTypes,
   editorRef, // TODO: canvas ref?
 }: CanvasProps) {
-  // Create editor with initial state if provided
   const [editor] = useState(
     () => new Editor(state ? { nodes: state.nodes, edges: state.edges } : {})
   );
 
-  // Assign editor to provided ref
+  const nodeTypes = {
+    group: GroupNode,
+    ...customNodeTypes,
+  };
+
   useEffect(() => {
     if (editorRef) {
       editorRef.current = editor;
@@ -50,31 +55,41 @@ export function Canvas({
   const svgRef = useRef<SVGSVGElement>(null);
 
   const updateCanvas = useCallback(() => {
-    console.log("updatecanvas");
-
     if (onStateChange) {
       const { nodes, edges } = editor.state;
       onStateChange({ nodes, edges });
     }
   }, [editor, onStateChange]);
 
-  // Update editor when state prop changes
+  // Subscribe to canvas update events from the Editor's event emitter
+  useEffect(() => {
+    const handleCanvasUpdate = (data: any) => {
+      if (data.type === "node-created") {
+        updateCanvas();
+      }
+    };
+
+    const unsubscribe = editor.events.on("canvas:update", handleCanvasUpdate);
+
+    return () => {
+      unsubscribe();
+    };
+  }, [editor, updateCanvas]);
+
   useEffect(() => {
     if (state) {
       editor.updateState(state);
     }
   }, [editor, state]);
 
-  // Track selection box state
   const [selectionBox, setSelectionBox] = useState<{
     start: Point;
     current: Point;
     visible: boolean;
   } | null>(null);
 
-  // Convert mouse coordinates to canvas coordinates
   const getCanvasPoint = useCallback(
-    (e: React.MouseEvent): Point => {
+    (e: React.PointerEvent): Point => {
       if (!containerRef.current) return { x: 0, y: 0 };
 
       const rect = containerRef.current.getBoundingClientRect();
@@ -88,9 +103,8 @@ export function Canvas({
     [editor]
   );
 
-  // Mouse event handlers
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
       if (e.button === 0) {
         // Left click
         if (e.altKey || e.metaKey) {
@@ -121,8 +135,8 @@ export function Canvas({
     [editor, getCanvasPoint, updateCanvas]
   );
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
       const point = { x: e.clientX, y: e.clientY };
 
       if (editor.state.isPanning) {
@@ -164,8 +178,8 @@ export function Canvas({
     [editor, getCanvasPoint, selectionBox, updateCanvas]
   );
 
-  const handleMouseUp = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
       if (editor.state.isPanning) {
         editor.stopPan();
       }
@@ -192,9 +206,8 @@ export function Canvas({
     [editor, updateCanvas]
   );
 
-  // Node interaction handler
   const handleNodeInteraction = useCallback(
-    (e: React.MouseEvent, node: Node) => {
+    (e: React.PointerEvent, node: Node) => {
       const canvasPoint = getCanvasPoint(e);
       editor.startNodeDrag(node.id, canvasPoint);
       updateCanvas();
@@ -202,9 +215,8 @@ export function Canvas({
     [editor, getCanvasPoint, updateCanvas]
   );
 
-  // Edge interaction handler
   const handleEdgeInteraction = useCallback(
-    (e: React.MouseEvent, edge: Edge) => {
+    (e: React.PointerEvent, edge: Edge) => {
       // Currently just selects the edge, but could be extended for edge manipulation
       editor.select([], [edge.id], !e.shiftKey);
       updateCanvas();
@@ -247,10 +259,12 @@ export function Canvas({
           cursor: editor.state.isPanning ? "grabbing" : "default",
           ...style,
         }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         onWheel={handleWheel}
+        onPointerCancel={handlePointerUp}
+        touch-action="none"
       >
         {/* Background grid */}
         <div
@@ -333,6 +347,8 @@ export function Canvas({
             <SelectionBox box={renderSelectionBox} />
           </div>
         )}
+
+        <GroupActionButton position="top-right" />
 
         {children}
       </div>

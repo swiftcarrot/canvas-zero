@@ -20,7 +20,6 @@ export class CanvasState {
   lastMousePosition: Point | null = null;
 
   constructor(options: CanvasStateOptions = {}) {
-    // Initialize with provided values or defaults
     this.nodes = options.nodes || [];
     this.edges = options.edges || [];
 

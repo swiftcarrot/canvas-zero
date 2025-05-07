@@ -5,7 +5,7 @@ export interface CustomNodeProps {
   node: Node;
   editor: Editor;
   isSelected: boolean;
-  onNodeInteraction: (event: React.MouseEvent, node: Node) => void;
+  onNodeInteraction: (event: React.PointerEvent, node: Node) => void;
 }
 
 export function NodeRenderer({
@@ -16,13 +16,13 @@ export function NodeRenderer({
 }: {
   node: Node;
   editor: Editor;
-  onNodeInteraction: (event: React.MouseEvent, node: Node) => void;
+  onNodeInteraction: (event: React.PointerEvent, node: Node) => void;
   nodeTypes?: Record<string, React.ComponentType<CustomNodeProps>>;
 }) {
   const { position, width = 100, height = 80, type, data } = node;
   const isSelected = editor.state.selection.nodeIds.includes(node.id);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
     onNodeInteraction(e, node);
   };
@@ -40,10 +40,9 @@ export function NodeRenderer({
         height: height,
         cursor: "move",
         userSelect: "none",
-        overflow: "hidden",
         zIndex: isSelected ? 1 : 0,
       }}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
     >
       {CustomNodeComponent ? (
         <CustomNodeComponent

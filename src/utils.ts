@@ -38,6 +38,7 @@ export function simplifyPath(path: Point[]) {
   return simplified;
 }
 
+// TODO: use more standardized way to generate unique IDs
 export function generateId(prefix: string = ""): string {
   return `${prefix}${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 }

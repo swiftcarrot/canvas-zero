@@ -15,27 +15,42 @@ export interface Rectangle {
   height: number;
 }
 
+export interface Viewport {
+  rect: Rectangle;
+  zoom: number;
+}
+
 export interface Node {
   id: string;
-  type: "text" | "file" | "link" | "group" | string;
+  type: string;
   position: Point;
   width?: number;
   height?: number;
-  data: any;
+  data: {
+    label?: string;
+    content?: string;
+    parentId?: string;
+    originalPosition?: Point;
+    childNodeIds?: string[];
+    [key: string]: any;
+  };
 }
 
 export interface Edge {
   id: string;
-  type: "line" | "bezier" | "elbow-connector" | string;
-  fromNodeId: string;
-  toNodeId: string;
-  fromHandleId: string;
-  toHandleId: string;
+  type: string;
+  from?: Point;
+  to?: Point;
+  fromNodeId?: string;
+  toNodeId?: string;
+  fromHandleId?: string;
+  toHandleId?: string;
+  data?: Record<string, any>;
 }
 
-export interface Viewport {
-  rect: Rectangle;
-  zoom: number;
+export interface Handle {
+  id: string;
+  position: "top" | "right" | "bottom" | "left" | Point;
 }
 
 export interface Selection {
