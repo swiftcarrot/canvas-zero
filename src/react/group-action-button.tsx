@@ -1,4 +1,3 @@
-import React from "react";
 import { useCanvas } from "./context";
 
 interface GroupActionButtonProps {
@@ -8,7 +7,7 @@ interface GroupActionButtonProps {
 export function GroupActionButton({
   position = "top-right",
 }: GroupActionButtonProps) {
-  const { editor, updateCanvas } = useCanvas();
+  const { editor } = useCanvas();
   const selectedNodeIds = editor.state.selection.nodeIds;
 
   // Only show the button when multiple nodes are selected
@@ -30,7 +29,6 @@ export function GroupActionButton({
   const handleCreateGroup = () => {
     const groupNode = editor.createGroup();
     if (groupNode) {
-      updateCanvas();
     }
   };
 

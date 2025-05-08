@@ -39,8 +39,7 @@ export function Canvas({ initialState, editorRef, ...props }: CanvasProps) {
         : {}
     )
   );
-  window.editor = editor.current;
-  editorRef.current = editor.current;
+  editorRef!.current = editor.current;
 
   return (
     <CanvasContext.Provider value={{ editor: editor.current }}>
@@ -241,9 +240,11 @@ export function CanvasContent({
       }
     : null;
 
-  const viewportTransform = `translate(${-viewport.box.x * viewport.zoom}, ${
-    -viewport.box.y * viewport.zoom
-  }) scale(${viewport.zoom})`;
+  const viewportTransform = viewport
+    ? `translate(${-viewport.box.x * viewport.zoom}, ${
+        -viewport.box.y * viewport.zoom
+      }) scale(${viewport.zoom})`
+    : "";
 
   return (
     <div
@@ -265,7 +266,7 @@ export function CanvasContent({
       onPointerCancel={handlePointerUp}
       touch-action="none"
     >
-      <BackgroundGrid viewport={viewport} />
+      <BackgroundGrid viewport={viewport!} />
 
       <svg
         style={{
@@ -279,7 +280,7 @@ export function CanvasContent({
         }}
       >
         <g transform={viewportTransform}>
-          {edges.map((edge) => (
+          {edges!.map((edge) => (
             <EdgeRenderer
               key={edge.id}
               edge={edge}
@@ -300,7 +301,7 @@ export function CanvasContent({
           transformOrigin: "0 0",
         }}
       >
-        {nodes.map((node) => (
+        {nodes!.map((node) => (
           <NodeRenderer
             key={node.id}
             node={node}

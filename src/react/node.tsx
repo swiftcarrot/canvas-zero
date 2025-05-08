@@ -51,7 +51,7 @@ export const NodeRenderer = ({
         <CustomNodeComponent
           node={node}
           editor={editor}
-          isSelected={isSelected}
+          isSelected={isSelected!}
           onNodeInteraction={onNodeInteraction}
         />
       ) : (

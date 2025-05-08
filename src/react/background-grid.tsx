@@ -1,9 +1,9 @@
 import { useCallback } from "react";
-import type { CanvasState } from "../state";
 import { GRID_SIZE } from "../utils";
+import type { Viewport } from "../types";
 
 export interface BackgroundGridProps {
-  viewport: CanvasState["viewport"];
+  viewport: Viewport;
 }
 
 export function BackgroundGrid({ viewport }: BackgroundGridProps) {

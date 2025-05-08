@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useCanvas } from "./context";
 import { generateId } from "../utils";
+import type { Edge } from "../types";
 
 export interface HandleProps {
   id?: string;
@@ -25,13 +26,13 @@ export function Handle({
   const targetHandleRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const [nodeId, element] = getParentNodeId();
-    const rect1 = element.getBoundingClientRect();
+    const [nodeId, element] = getParentNodeId()!;
+    const rect1 = (element as HTMLElement)!.getBoundingClientRect();
     const rect2 = handleRef.current!.getBoundingClientRect();
 
     editor.updateHandle({
       id: handleId,
-      nodeId,
+      nodeId: nodeId as string,
       box: {
         x: rect2.left - rect1.left,
         y: rect2.top - rect1.top,
@@ -58,7 +59,7 @@ export function Handle({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       e.stopPropagation();
-      const [nodeId] = getParentNodeId();
+      const [nodeId] = getParentNodeId()!;
       if (!nodeId) return;
 
       setIsDragging(true);
@@ -89,7 +90,7 @@ export function Handle({
         to: targetPoint,
         fromNodeId: nodeId,
         fromHandleId: handleId,
-      };
+      } as Edge;
 
       editor.createEdge(tempEdge);
 
@@ -145,7 +146,7 @@ export function Handle({
 
         if (targetNodeRef.current && targetValid) {
           editor.createEdge({
-            fromNodeId: nodeId,
+            fromNodeId: nodeId as string,
             fromHandleId: handleId,
             toNodeId: targetNodeRef.current,
             toHandleId: targetHandleRef.current || "default",

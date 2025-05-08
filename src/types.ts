@@ -20,7 +20,7 @@ export interface Viewport {
   zoom: number;
 }
 
-export interface Handle {
+export interface HandleBox {
   id: string;
   nodeId: string;
   box: Box;
@@ -33,7 +33,7 @@ export interface Node {
   position: Point;
   width: number; // TODO: support auto size node
   height: number;
-  handles: Record<string, Handle>;
+  handles: Record<string, HandleBox>;
   data: {
     label?: string;
     content?: string;

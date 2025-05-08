@@ -1,5 +1,5 @@
 import { CanvasState, type CanvasStateOptions } from "./state";
-import type { Node, Edge, Point, Box, Handle } from "./types";
+import type { Node, Edge, Point, Box, HandleBox } from "./types";
 import { createElbowConnector } from "./elbow-connector";
 import { generateId, GRID_SIZE, rectanglesOverlap } from "./utils";
 import { EventEmitter } from "./event-emitter";
@@ -67,10 +67,10 @@ export class Editor {
   }
 
   createEdge(edge: Partial<Edge>) {
-    const newEdge: Edge = {
+    const newEdge = {
       id: generateId("edge-"),
       ...edge,
-    };
+    } as Edge;
 
     this.undoStack.push(
       () => {
@@ -290,16 +290,8 @@ export class Editor {
     );
   }
 
-  // Zoom the canvas view
   zoom(scale: number, center?: Point) {
-    // If no center is provided, use the center of the viewport
-    if (!center && this.container) {
-      const rect = this.container.getBoundingClientRect();
-      center = {
-        x: rect.width / 2,
-        y: rect.height / 2,
-      };
-    } else if (!center) {
+    if (!center) {
       center = {
         x: this.state.viewport.box.w / 2,
         y: this.state.viewport.box.h / 2,
@@ -622,7 +614,7 @@ export class Editor {
     this.triggerUpdate("pan-stopped");
   }
 
-  updateHandle(handle: Handle) {
+  updateHandle(handle: HandleBox) {
     const node = this.state.getNodeById(handle.nodeId)!;
     node.handles = node.handles || {};
     node.handles[handle.id] = handle;
