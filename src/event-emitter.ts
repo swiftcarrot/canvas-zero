@@ -13,7 +13,7 @@ export class EventEmitter {
     return () => this.off(event, listener);
   }
 
-  off(event: string, listener: EventListener): void {
+  off(event: string, listener: EventListener) {
     if (!this.events[event]) return;
 
     this.events[event] = this.events[event].filter(
@@ -25,7 +25,7 @@ export class EventEmitter {
     }
   }
 
-  emit(event: string, ...args: any[]): void {
+  emit(event: string, ...args: any[]) {
     if (!this.events[event]) return;
 
     this.events[event].forEach((listener) => {
@@ -33,7 +33,7 @@ export class EventEmitter {
     });
   }
 
-  removeAllListeners(event?: string): void {
+  removeAllListeners(event?: string) {
     if (event) {
       delete this.events[event];
     } else {

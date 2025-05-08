@@ -118,9 +118,8 @@ export function Debugger({ className, style }: DebuggerProps) {
           </div>
 
           <div style={{ marginBottom: "10px" }}>
-            <strong>Position:</strong> (
-            {editor.state.viewport.rect.x.toFixed(0)},{" "}
-            {editor.state.viewport.rect.y.toFixed(0)})
+            <strong>Position:</strong> ({editor.state.viewport.box.x.toFixed(0)}
+            , {editor.state.viewport.box.y.toFixed(0)})
           </div>
 
           <div

@@ -22,7 +22,7 @@ export function EdgeRenderer({
   onEdgeInteraction: (event: React.PointerEvent, edge: Edge) => void;
 }) {
   const isSelected = editor.state.selection.edgeIds.includes(edge.id);
-  const points = editor.getEdgePath(edge);
+  const points = edge.points || [];
   const pathString = createSvgPath(points);
 
   const handlePointerDown = (e: React.PointerEvent) => {

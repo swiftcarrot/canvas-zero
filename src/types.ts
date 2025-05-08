@@ -8,24 +8,32 @@ export interface Segment {
   p2: Point;
 }
 
-export interface Rectangle {
+export interface Box {
   x: number;
   y: number;
-  width: number;
-  height: number;
+  w: number;
+  h: number;
 }
 
 export interface Viewport {
-  rect: Rectangle;
+  box: Box;
   zoom: number;
 }
 
+export interface Handle {
+  id: string;
+  nodeId: string;
+  box: Box;
+}
+
+// TODO: node.box
 export interface Node {
   id: string;
   type: string;
   position: Point;
   width: number; // TODO: support auto size node
   height: number;
+  handles: Record<string, Handle>;
   data: {
     label?: string;
     content?: string;
@@ -46,15 +54,11 @@ export interface Edge {
   fromHandleId?: string;
   toHandleId?: string;
   data?: Record<string, any>;
-}
-
-export interface Handle {
-  id: string;
-  position: "top" | "right" | "bottom" | "left" | Point;
+  points?: Point[];
 }
 
 export interface Selection {
   nodeIds: string[];
   edgeIds: string[];
-  box: Rectangle | null;
+  box: Box | null;
 }

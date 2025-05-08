@@ -19,10 +19,8 @@ export function BackgroundGrid({ viewport }: BackgroundGridProps) {
         GRID_SIZE * viewport.zoom
       }px`,
       backgroundPosition: `${
-        (-viewport.rect.x * viewport.zoom) % (GRID_SIZE * viewport.zoom)
-      }px ${
-        (-viewport.rect.y * viewport.zoom) % (GRID_SIZE * viewport.zoom)
-      }px`,
+        (-viewport.box.x * viewport.zoom) % (GRID_SIZE * viewport.zoom)
+      }px ${(-viewport.box.y * viewport.zoom) % (GRID_SIZE * viewport.zoom)}px`,
       transform: "translate(0px, 0px)",
     } as const;
   }, [viewport]);

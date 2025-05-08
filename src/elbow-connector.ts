@@ -1,4 +1,4 @@
-import type { Point, Rectangle } from "./types";
+import type { Point, Box } from "./types";
 import {
   GRID_SIZE,
   isPointInAnyRectangle,
@@ -20,21 +20,21 @@ function pointKey(point: Point): string {
   return `${point.x},${point.y}`;
 }
 
-function balancePath(path: Point[], rect1: Rectangle, rect2: Rectangle) {
+function balancePath(path: Point[], rect1: Box, rect2: Box) {
   let x1, x2, y1, y2;
-  if (rect1.x + rect1.width < rect2.x) {
-    x1 = rect1.x + rect1.width;
+  if (rect1.x + rect1.w < rect2.x) {
+    x1 = rect1.x + rect1.w;
     x2 = rect2.x;
-  } else if (rect2.x + rect2.width < rect1.x) {
-    x1 = rect2.x + rect2.width;
+  } else if (rect2.x + rect2.w < rect1.x) {
+    x1 = rect2.x + rect2.w;
     x2 = rect1.x;
   }
 
-  if (rect1.y + rect1.height < rect2.y) {
-    y1 = rect1.y + rect1.height;
+  if (rect1.y + rect1.h < rect2.y) {
+    y1 = rect1.y + rect1.h;
     y2 = rect2.y;
-  } else if (rect2.y + rect2.height < rect1.y) {
-    y1 = rect2.y + rect2.height;
+  } else if (rect2.y + rect2.h < rect1.y) {
+    y1 = rect2.y + rect2.h;
     y2 = rect1.y;
   }
 
@@ -91,10 +91,10 @@ interface Node {
 }
 
 function findPath(
-  bounds: Rectangle,
+  bounds: Box,
   p1: Point,
   p2: Point,
-  rectangles: Rectangle[]
+  rectangles: Box[]
 ): Point[] {
   const start = snapPointToGrid(p1);
   const end = snapPointToGrid(p2);
@@ -174,8 +174,8 @@ function createElbowPath(p1: Point, p2: Point) {
 export function createElbowConnector(
   p1: Point,
   p2: Point,
-  rect1?: Rectangle,
-  rect2?: Rectangle
+  rect1?: Box,
+  rect2?: Box
 ) {
   if (rect1) {
     if (rect2) {
@@ -192,12 +192,7 @@ export function createElbowConnector(
   }
 }
 
-function _createElbowConnector(
-  p1: Point,
-  p2: Point,
-  rect1: Rectangle,
-  rect2?: Rectangle
-) {
+function _createElbowConnector(p1: Point, p2: Point, rect1: Box, rect2?: Box) {
   if (!rect2 && !rectanglesOverlap(rect1, rectangleByPoints(p1, p2))) {
     const dx = Math.abs(p1.x - p2.x);
     const dy = Math.abs(p1.y - p2.y);
@@ -208,35 +203,29 @@ function _createElbowConnector(
       rect2 = {
         x: p2.x + (p2.x > p1.x ? 0 : -width),
         y: p2.y - height / 2,
-        width,
-        height,
+        w: width,
+        h: height,
       };
     } else {
       rect2 = {
         x: p2.x - width / 2,
         y: p2.y + (p2.y > p1.y ? 0 : -height),
-        width: dx,
-        height: GRID_SIZE,
+        w: dx,
+        h: GRID_SIZE,
       };
     }
   }
 
   const minX = Math.min(rect1.x, rect2 ? rect2.x : p2.x);
   const minY = Math.min(rect1.y, rect2 ? rect2.y : p2.y);
-  const maxX = Math.max(
-    rect1.x + rect1.width,
-    rect2 ? rect2.x + rect2.width : p2.x
-  );
-  const maxY = Math.max(
-    rect1.y + rect1.height,
-    rect2 ? rect2.y + rect2.height : p2.y
-  );
+  const maxX = Math.max(rect1.x + rect1.w, rect2 ? rect2.x + rect2.w : p2.x);
+  const maxY = Math.max(rect1.y + rect1.h, rect2 ? rect2.y + rect2.h : p2.y);
 
   const bounds = {
     x: minX - GRID_SIZE,
     y: minY - GRID_SIZE,
-    width: maxX - minX + GRID_SIZE * 2,
-    height: maxY - minY + GRID_SIZE * 2,
+    w: maxX - minX + GRID_SIZE * 2,
+    h: maxY - minY + GRID_SIZE * 2,
   };
 
   let path = findPath(bounds, p1, p2, rect2 ? [rect1, rect2] : [rect1]);

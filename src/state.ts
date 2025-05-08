@@ -24,7 +24,7 @@ export class CanvasState {
     this.edges = options.edges || [];
 
     this.viewport = options.viewport || {
-      rect: { x: 0, y: 0, width: 1000, height: 1000 },
+      box: { x: 0, y: 0, w: 1000, h: 1000 },
       zoom: 1,
     };
 
@@ -51,15 +51,15 @@ export class CanvasState {
 
   screenToCanvas(point: Point): Point {
     return {
-      x: point.x / this.viewport.zoom + this.viewport.rect.x,
-      y: point.y / this.viewport.zoom + this.viewport.rect.y,
+      x: point.x / this.viewport.zoom + this.viewport.box.x,
+      y: point.y / this.viewport.zoom + this.viewport.box.y,
     };
   }
 
   canvasToScreen(point: Point): Point {
     return {
-      x: (point.x - this.viewport.rect.x) * this.viewport.zoom,
-      y: (point.y - this.viewport.rect.y) * this.viewport.zoom,
+      x: (point.x - this.viewport.box.x) * this.viewport.zoom,
+      y: (point.y - this.viewport.box.y) * this.viewport.zoom,
     };
   }
 

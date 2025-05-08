@@ -1,5 +1,5 @@
 import { CanvasState, type CanvasStateOptions } from "./state";
-import type { Node, Edge, Point, Rectangle } from "./types";
+import type { Node, Edge, Point, Box, Handle } from "./types";
 import { createElbowConnector } from "./elbow-connector";
 import { generateId, GRID_SIZE, rectanglesOverlap } from "./utils";
 import { EventEmitter } from "./event-emitter";
@@ -48,6 +48,7 @@ export class Editor {
       width: snappedWidth,
       height: snappedHeight,
       data,
+      handles: {},
     };
 
     this.state.nodes.push(node);
@@ -85,19 +86,7 @@ export class Editor {
     return edge;
   }
 
-  // Move a node to a new position
-  moveNode(nodeId: string, newPosition: Point): void {
-    const node = this.state.getNodeById(nodeId);
-    if (node) {
-      node.position = this.snapPointToGrid(newPosition);
-      // Update any connected edges
-      this.updateEdgesForNode(nodeId);
-      this.triggerUpdate("node-moved", { nodeId, position: node.position });
-    }
-  }
-
-  // Move multiple nodes at once (useful for selection)
-  moveNodes(nodeIds: string[], deltaX: number, deltaY: number): void {
+  moveNodes(nodeIds: string[], deltaX: number, deltaY: number) {
     const snappedDeltaX = this.snapToGrid(deltaX);
     const snappedDeltaY = this.snapToGrid(deltaY);
 
@@ -111,7 +100,6 @@ export class Editor {
       }
     });
 
-    // Update any connected edges
     nodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
     this.triggerUpdate("nodes-moved", {
       nodeIds,
@@ -119,15 +107,15 @@ export class Editor {
     });
   }
 
-  // Update edges connected to a specific node
-  private updateEdgesForNode(nodeId: string): void {
+  private updateEdgesForNode(nodeId: string) {
     const edges = this.state.getEdgesByNodeId(nodeId);
-    // In a real implementation, this would recompute the path or connection points
-    // For now, we're just making sure it's ready for future implementation
+    for (const edge of edges) {
+      this.renderEdge(edge);
+    }
   }
 
   // Resize a node
-  resizeNode(nodeId: string, width: number, height: number): void {
+  resizeNode(nodeId: string, width: number, height: number) {
     const node = this.state.getNodeById(nodeId);
     if (node) {
       node.width = this.snapToGrid(width);
@@ -142,7 +130,7 @@ export class Editor {
   }
 
   // Delete a node and its connected edges
-  deleteNode(nodeId: string): void {
+  deleteNode(nodeId: string) {
     // Delete any connected edges first
     const connectedEdges = this.state.getEdgesByNodeId(nodeId);
     connectedEdges.forEach((edge) => {
@@ -161,7 +149,7 @@ export class Editor {
   }
 
   // Delete an edge
-  deleteEdge(edgeId: string): void {
+  deleteEdge(edgeId: string) {
     const edge = this.state.getEdgeById(edgeId);
     this.state.edges = this.state.edges.filter((edge) => edge.id !== edgeId);
     this.state.selection.edgeIds = this.state.selection.edgeIds.filter(
@@ -172,7 +160,7 @@ export class Editor {
   }
 
   // Zoom the canvas view
-  zoom(scale: number, center?: Point): void {
+  zoom(scale: number, center?: Point) {
     // If no center is provided, use the center of the viewport
     if (!center && this.container) {
       const rect = this.container.getBoundingClientRect();
@@ -182,8 +170,8 @@ export class Editor {
       };
     } else if (!center) {
       center = {
-        x: this.state.viewport.rect.width / 2,
-        y: this.state.viewport.rect.height / 2,
+        x: this.state.viewport.box.w / 2,
+        y: this.state.viewport.box.h / 2,
       };
     }
 
@@ -198,15 +186,15 @@ export class Editor {
     const zoomFactor = newZoom / this.state.viewport.zoom;
 
     // Update the viewport position to keep the center point fixed
-    this.state.viewport.rect = {
+    this.state.viewport.box = {
       x:
         centerInCanvas.x -
-        (centerInCanvas.x - this.state.viewport.rect.x) / zoomFactor,
+        (centerInCanvas.x - this.state.viewport.box.x) / zoomFactor,
       y:
         centerInCanvas.y -
-        (centerInCanvas.y - this.state.viewport.rect.y) / zoomFactor,
-      width: this.state.viewport.rect.width,
-      height: this.state.viewport.rect.height,
+        (centerInCanvas.y - this.state.viewport.box.y) / zoomFactor,
+      w: this.state.viewport.box.w,
+      h: this.state.viewport.box.h,
     };
 
     // Set the new zoom level
@@ -215,11 +203,11 @@ export class Editor {
   }
 
   // Pan the canvas view
-  pan(deltaX: number, deltaY: number): void {
-    this.state.viewport.rect = {
-      ...this.state.viewport.rect,
-      x: this.state.viewport.rect.x - deltaX / this.state.viewport.zoom,
-      y: this.state.viewport.rect.y - deltaY / this.state.viewport.zoom,
+  pan(deltaX: number, deltaY: number) {
+    this.state.viewport.box = {
+      ...this.state.viewport.box,
+      x: this.state.viewport.box.x - deltaX / this.state.viewport.zoom,
+      y: this.state.viewport.box.y - deltaY / this.state.viewport.zoom,
     };
 
     this.triggerUpdate("viewport-changed", { viewport: this.state.viewport });
@@ -230,7 +218,7 @@ export class Editor {
     nodeIds: string[] = [],
     edgeIds: string[] = [],
     exclusive: boolean = true
-  ): void {
+  ) {
     if (exclusive) {
       this.state.clearSelection();
     }
@@ -251,30 +239,29 @@ export class Editor {
     });
   }
 
-  // Select all nodes and edges
-  selectAll(): void {
+  selectAll() {
     const nodeIds = this.state.nodes.map((node) => node.id);
     const edgeIds = this.state.edges.map((edge) => edge.id);
     this.select(nodeIds, edgeIds, true);
   }
 
   // Select items by area (a rectangular selection box)
-  selectByRect(rect: Rectangle): void {
+  selectByRect(rect: Box) {
     // Convert screen coordinates to canvas coordinates if needed
-    const snappedRect: Rectangle = {
+    const snappedRect: Box = {
       x: this.snapToGrid(rect.x),
       y: this.snapToGrid(rect.y),
-      width: this.snapToGrid(rect.width),
-      height: this.snapToGrid(rect.height),
+      w: this.snapToGrid(rect.w),
+      h: this.snapToGrid(rect.h),
     };
 
     // Find nodes within the selection rectangle
     const selectedNodes = this.state.nodes.filter((node) => {
-      const nodeRect: Rectangle = {
+      const nodeRect: Box = {
         x: node.position.x,
         y: node.position.y,
-        width: node.width || 0,
-        height: node.height || 0,
+        w: node.width || 0,
+        h: node.height || 0,
       };
 
       return rectanglesOverlap(snappedRect, nodeRect);
@@ -289,18 +276,18 @@ export class Editor {
 
       if (!fromNode || !toNode) return false;
 
-      const fromRect: Rectangle = {
+      const fromRect: Box = {
         x: fromNode.position.x,
         y: fromNode.position.y,
-        width: fromNode.width || 0,
-        height: fromNode.height || 0,
+        w: fromNode.width || 0,
+        h: fromNode.height || 0,
       };
 
-      const toRect: Rectangle = {
+      const toRect: Box = {
         x: toNode.position.x,
         y: toNode.position.y,
-        width: toNode.width || 0,
-        height: toNode.height || 0,
+        w: toNode.width || 0,
+        h: toNode.height || 0,
       };
 
       // If both connected nodes are in selection, include the edge
@@ -323,7 +310,7 @@ export class Editor {
   }
 
   // Start dragging a node
-  startNodeDrag(nodeId: string, point: Point): void {
+  startNodeDrag(nodeId: string, point: Point) {
     this.state.draggingNode = nodeId;
     this.state.isDragging = true;
     this.state.lastMousePosition = this.snapPointToGrid(point);
@@ -336,8 +323,7 @@ export class Editor {
     this.triggerUpdate("drag-started", { nodeId, point });
   }
 
-  // Continue dragging nodes
-  dragNodes(point: Point): void {
+  dragNodes(point: Point) {
     if (!this.state.isDragging || !this.state.lastMousePosition) return;
 
     const snappedPoint = this.snapPointToGrid(point);
@@ -345,22 +331,13 @@ export class Editor {
     const deltaX = snappedPoint.x - this.state.lastMousePosition.x;
     const deltaY = snappedPoint.y - this.state.lastMousePosition.y;
 
-    // Move all selected nodes
-    // No need to snap deltaX/Y here if moveNodes snaps the final position or individual deltas.
-    // However, to ensure consistent snapping during drag, we can snap the deltas directly.
-    // Let's ensure moveNodes handles snapping correctly.
-    // For now, we pass potentially un-snapped deltas if lastMousePosition was snapped and current point is snapped.
-    // The alternative is to calculate deltas based on original positions and snap the final positions.
-    // Let's stick to snapping the point and letting moveNodes handle the rest.
     this.moveNodes(this.state.selection.nodeIds, deltaX, deltaY);
 
     this.state.lastMousePosition = snappedPoint;
-
-    this.triggerUpdate("nodes-dragged", { point: snappedPoint });
   }
 
   // Stop dragging
-  stopDrag(): void {
+  stopDrag() {
     this.state.isDragging = false;
     this.state.draggingNode = null;
     this.state.draggingEdge = null;
@@ -370,15 +347,14 @@ export class Editor {
   }
 
   // Start panning
-  startPan(point: Point): void {
+  startPan(point: Point) {
     this.state.isPanning = true;
     this.state.lastMousePosition = point;
 
     this.triggerUpdate("pan-started", { point });
   }
 
-  // Continue panning
-  continuePan(point: Point): void {
+  continuePan(point: Point) {
     if (!this.state.isPanning || !this.state.lastMousePosition) return;
 
     const deltaX = point.x - this.state.lastMousePosition.x;
@@ -390,72 +366,76 @@ export class Editor {
     this.triggerUpdate("pan-continued", { point });
   }
 
-  // Stop panning
-  stopPan(): void {
+  stopPan() {
     this.state.isPanning = false;
     this.state.lastMousePosition = null;
 
     this.triggerUpdate("pan-stopped");
   }
 
-  getEdgePath(edge: Edge): Point[] {
+  updateHandle(handle: Handle) {
+    const node = this.state.getNodeById(handle.nodeId)!;
+    node.handles = node.handles || {};
+    node.handles[handle.id] = handle;
+
+    // TODO: check if edge is connected to this handle
+    for (const edge of this.state.edges) {
+      if (edge.fromHandleId === handle.id || edge.toHandleId === handle.id) {
+        this.renderEdge(edge);
+      }
+    }
+  }
+
+  renderEdge(edge: Edge) {
     let p1 = edge.from;
     let p2 = edge.to;
-    let rect1: Rectangle | undefined;
-    let rect2: Rectangle | undefined;
+    let rect1: Box | undefined;
+    let rect2: Box | undefined;
 
-    const fromNode = edge.fromNodeId
-      ? this.state.getNodeById(edge.fromNodeId)
-      : null;
-    const toNode = edge.toNodeId ? this.state.getNodeById(edge.toNodeId) : null;
-
-    // TODO: reduce number of queries to the DOM
-    const containerRect = this.container.getBoundingClientRect();
-
-    if (fromNode) {
-      const fromHandleElement = this.container.querySelector(
-        `[data-node-id="${edge.fromNodeId}"] [data-handle-id="${edge.fromHandleId}"]`
-      );
-      if (fromHandleElement) {
-        const fromRect = fromHandleElement.getBoundingClientRect();
-        p1 = this.state.screenToCanvas({
-          x: fromRect.left + fromRect.width / 2 - containerRect.left,
-          y: fromRect.top + fromRect.height / 2 - containerRect.top,
-        });
-        rect1 = {
-          x: fromNode.position.x,
-          y: fromNode.position.y,
-          width: fromNode.width,
-          height: fromNode.height,
-        };
+    if (edge.fromHandleId) {
+      const node = this.state.getNodeById(edge.fromNodeId!);
+      if (node && node.handles) {
+        const handle = node.handles[edge.fromHandleId];
+        if (handle) {
+          // TODO: container offset
+          p1 = {
+            x: node.position.x + handle.box.x + handle.box.w / 2,
+            y: node.position.y + handle.box.y + handle.box.h / 2,
+          };
+          // TODO: node.box
+          rect1 = {
+            x: node.position.x,
+            y: node.position.y,
+            w: node.width,
+            h: node.height,
+          };
+        }
       }
     }
 
-    if (toNode) {
-      const toHandleElement = this.container.querySelector(
-        `[data-node-id="${edge.toNodeId}"] [data-handle-id="${edge.toHandleId}"]`
-      );
-      if (toHandleElement) {
-        const toRect = toHandleElement.getBoundingClientRect();
-        const containerRect = this.container!.getBoundingClientRect();
-        p2 = this.state.screenToCanvas({
-          x: toRect.left + toRect.width / 2 - containerRect.left,
-          y: toRect.top + toRect.height / 2 - containerRect.top,
-        });
-        rect2 = {
-          x: toNode.position.x,
-          y: toNode.position.y,
-          width: toNode.width,
-          height: toNode.height,
-        };
+    if (edge.toHandleId) {
+      const node = this.state.getNodeById(edge.toNodeId!);
+      if (node && node.handles) {
+        const handle = node.handles[edge.toHandleId];
+        if (handle) {
+          p2 = {
+            x: node.position.x + handle.box.x + handle.box.w / 2,
+            y: node.position.y + handle.box.y + handle.box.h / 2,
+          };
+          rect2 = {
+            x: node.position.x,
+            y: node.position.y,
+            w: node.width,
+            h: node.height,
+          };
+        }
       }
     }
 
-    if (!p1 || !p2) {
-      return [];
+    if (p1 && p2) {
+      edge.points = createElbowConnector(p1, p2, rect1, rect2);
+      this.triggerUpdate("edge-updated", { edge });
     }
-
-    return createElbowConnector(p1, p2, rect1, rect2);
   }
 
   createGroup(nodeIds?: string[], edgeIds?: string[]): Node | null {
@@ -506,6 +486,7 @@ export class Editor {
         childNodeIds: selectedNodeIds,
         childEdgeIds: selectedEdgeIds,
       },
+      handles: {},
     };
 
     // Adjust positions of child nodes to be relative to the group
@@ -585,8 +566,7 @@ export class Editor {
     return childNodes;
   }
 
-  // Update the editor state with external state
-  updateState(state: Partial<CanvasStateOptions>): void {
+  updateState(state: Partial<CanvasStateOptions>) {
     if (state.nodes) {
       this.state.nodes = state.nodes;
     }
@@ -597,6 +577,6 @@ export class Editor {
       this.state.viewport = state.viewport;
     }
 
-    this.triggerUpdate("state-updated", { state });
+    // this.triggerUpdate("state-updated", { state });
   }
 }

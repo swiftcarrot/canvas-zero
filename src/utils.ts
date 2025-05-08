@@ -1,19 +1,19 @@
-import type { Point, Rectangle } from "./types";
+import type { Point, Box } from "./types";
 
-export function rectangleByPoints(p1: Point, p2: Point): Rectangle {
+export function rectangleByPoints(p1: Point, p2: Point): Box {
   const x = Math.min(p1.x, p2.x);
   const y = Math.min(p1.y, p2.y);
   const width = Math.abs(p1.x - p2.x);
   const height = Math.abs(p1.y - p2.y);
-  return { x, y, width, height };
+  return { x, y, w: width, h: height };
 }
 
-export function rectanglesOverlap(r1: Rectangle, r2: Rectangle) {
+export function rectanglesOverlap(r1: Box, r2: Box) {
   return !(
-    r1.x + r1.width <= r2.x ||
-    r1.y + r1.height <= r2.y ||
-    r1.x >= r2.x + r2.width ||
-    r1.y >= r2.y + r2.height
+    r1.x + r1.w <= r2.x ||
+    r1.y + r1.h <= r2.y ||
+    r1.x >= r2.x + r2.w ||
+    r1.y >= r2.y + r2.h
   );
 }
 
@@ -45,23 +45,23 @@ export function generateId(prefix: string = ""): string {
 
 export function isPointInAnyRectangle(
   point: Point,
-  rectangles: Rectangle[]
+  rectangles: Box[]
 ): boolean {
   return rectangles.some(
     (rect) =>
       point.x >= rect.x &&
-      point.x <= rect.x + rect.width &&
+      point.x <= rect.x + rect.w &&
       point.y >= rect.y &&
-      point.y <= rect.y + rect.height
+      point.y <= rect.y + rect.h
   );
 }
 
-export function isPointInBounds(point: Point, bounds: Rectangle): boolean {
+export function isPointInBounds(point: Point, bounds: Box): boolean {
   return (
     point.x >= bounds.x &&
-    point.x <= bounds.x + bounds.width &&
+    point.x <= bounds.x + bounds.w &&
     point.y >= bounds.y &&
-    point.y <= bounds.y + bounds.height
+    point.y <= bounds.y + bounds.h
   );
 }
 

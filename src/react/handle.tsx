@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useCanvas } from "./context";
 import { generateId } from "../utils";
 import type { Point } from "../types";
@@ -13,7 +13,7 @@ export interface HandleProps {
 }
 
 export function Handle({
-  id = "default",
+  id: handleId = "default",
   type = "default",
   isValidConnection,
   className,
@@ -25,6 +25,23 @@ export function Handle({
   const targetNodeRef = useRef<string | null>(null);
   const targetHandleRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    const [nodeId, element] = getParentNodeId();
+    const rect1 = element.getBoundingClientRect();
+    const rect2 = handleRef.current!.getBoundingClientRect();
+
+    editor.updateHandle({
+      id: handleId,
+      nodeId,
+      box: {
+        x: rect2.left - rect1.left,
+        y: rect2.top - rect1.top,
+        w: rect2.width,
+        h: rect2.height,
+      },
+    });
+  }, []);
+
   const getParentNodeId = useCallback(() => {
     if (!handleRef.current) return null;
 
@@ -32,7 +49,7 @@ export function Handle({
     while (element) {
       const dataNodeId = element.getAttribute("data-node-id");
       if (dataNodeId) {
-        return dataNodeId;
+        return [dataNodeId, element];
       }
       element = element.parentElement;
     }
@@ -81,7 +98,7 @@ export function Handle({
         from: sourcePoint,
         to: targetPoint,
         fromNodeId: nodeId,
-        fromHandleId: id,
+        fromHandleId: handleId,
       };
 
       editor.state.edges.push(tempEdge);
@@ -148,7 +165,7 @@ export function Handle({
           editor.createEdge(
             nodeId,
             targetNodeRef.current,
-            id,
+            handleId,
             targetHandleRef.current || "default"
           );
         }
@@ -169,14 +186,13 @@ export function Handle({
 
       updateCanvas();
     },
-    [editor, getParentNodeId, id, isValidConnection, updateCanvas]
+    [editor, getParentNodeId, handleId, isValidConnection, updateCanvas]
   );
 
   return (
     <div
       ref={handleRef}
-      data-handle-id={id}
-      data-handle-type={type}
+      data-handle-id={handleId}
       className={className}
       onPointerDown={handlePointerDown}
     />

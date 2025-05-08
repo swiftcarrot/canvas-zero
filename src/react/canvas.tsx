@@ -55,6 +55,7 @@ export function Canvas({
           : {},
         containerRef.current
       );
+      window.editor = newEditor; // For debugging
       setEditor(newEditor);
       if (editorRef) {
         editorRef.current = newEditor;
@@ -70,13 +71,18 @@ export function Canvas({
     }
   }, [editor, onStateChange]);
 
-  // Subscribe to canvas update events from the Editor's event emitter
   useEffect(() => {
     if (!editor) return;
     const handleCanvasUpdate = (data: any) => {
-      if (data.type === "node-created") {
-        updateCanvas();
-      }
+      updateCanvas();
+      // TODO: improve editor events types
+      // if (
+      //   data.type === "node-created" ||
+      //   data.type === "edge-updated" ||
+      //   data.type === "nodes-dragged"
+      // ) {
+      //   updateCanvas();
+      // }
     };
 
     const unsubscribe = editor.events.on("canvas:update", handleCanvasUpdate);
@@ -146,19 +152,12 @@ export function Canvas({
 
       if (editor.state.isPanning) {
         editor.continuePan(point);
-        updateCanvas();
-        return;
-      }
-
-      if (editor.state.isDragging) {
-        const canvasPoint = getCanvasPoint(e); // Already snapped
+      } else if (editor.state.isDragging) {
+        const canvasPoint = getCanvasPoint(e);
         editor.dragNodes(canvasPoint);
-        updateCanvas();
         return;
-      }
-
-      if (selectionBox) {
-        const canvasPoint = getCanvasPoint(e); // Already snapped
+      } else if (selectionBox) {
+        const canvasPoint = getCanvasPoint(e);
         setSelectionBox({
           ...selectionBox,
           current: canvasPoint,
@@ -171,12 +170,11 @@ export function Canvas({
 
         if (width > 5 || height > 5) {
           // selectByRect in editor should handle snapping of the rect itself
-          editor.selectByRect({ x, y, width, height });
-          updateCanvas();
+          editor.selectByRect({ x, y, w: width, h: height });
         }
       }
     },
-    [editor, getCanvasPoint, selectionBox, updateCanvas]
+    [editor, getCanvasPoint, selectionBox]
   );
 
   const handlePointerUp = useCallback(
@@ -266,8 +264,8 @@ export function Canvas({
     : null;
 
   const viewportTransform = `translate(${
-    -editor.state.viewport.rect.x * editor.state.viewport.zoom
-  }, ${-editor.state.viewport.rect.y * editor.state.viewport.zoom}) scale(${
+    -editor.state.viewport.box.x * editor.state.viewport.zoom
+  }, ${-editor.state.viewport.box.y * editor.state.viewport.zoom}) scale(${
     editor.state.viewport.zoom
   })`;
 
