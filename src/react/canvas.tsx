@@ -39,7 +39,6 @@ export function Canvas({ initialState, editorRef, ...props }: CanvasProps) {
     )
   );
   editorRef!.current = editor.current;
-  window.editor = editor.current;
 
   return (
     <CanvasContext.Provider value={{ editor: editor.current }}>
