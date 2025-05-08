@@ -1,4 +1,4 @@
-import { CanvasState, type CanvasStateOptions } from "./state";
+import { CanvasState, type CanvasStateOptions } from "./canvas-state";
 import type { Node, Edge, Point, Box, HandleBox } from "./types";
 import { createElbowConnector } from "./elbow-connector";
 import { generateId, GRID_SIZE, rectanglesOverlap } from "./utils";

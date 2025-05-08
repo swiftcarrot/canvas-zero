@@ -1,6 +1,7 @@
 import type { Editor } from "../editor";
 import type { Node } from "../types";
 import { useEditorState } from "./context";
+import { Resizable } from "./resizable";
 
 export interface CustomNodeProps {
   node: Node;
@@ -30,6 +31,16 @@ export const NodeRenderer = ({
     onNodeInteraction(e, node);
   };
 
+  const handleResize = (newWidth: number, height: number) => {
+    console.log("handelResize", newWidth, height);
+    editor.resizeNode(node.id, newWidth, height);
+  };
+
+  const handleResizeEnd = (finalWidth: number, finalHeight: number) => {
+    // The final state is already committed by handleResize
+    // This is needed if we want to perform any additional actions when resizing is complete
+  };
+
   const CustomNodeComponent = nodeTypes?.[node.type];
 
   return (
@@ -39,40 +50,53 @@ export const NodeRenderer = ({
         position: "absolute",
         left: position.x,
         top: position.y,
-        width: width,
-        height: height,
         cursor: "move",
         userSelect: "none",
         zIndex: isSelected ? 1 : 0,
       }}
-      onPointerDown={handlePointerDown}
     >
-      {CustomNodeComponent ? (
-        <CustomNodeComponent
-          node={node}
-          editor={editor}
-          isSelected={isSelected!}
-          onNodeInteraction={onNodeInteraction}
-        />
-      ) : (
+      <Resizable
+        width={width}
+        height={height}
+        isSelected={isSelected!}
+        onResize={handleResize}
+        onResizeEnd={handleResizeEnd}
+      >
         <div
-          style={{
-            backgroundColor: "#fff",
-            border: isSelected ? "2px solid #3182ce" : "1px solid #e2e8f0",
-            borderRadius: "4px",
-            boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
-            padding: "8px",
-          }}
+          style={{ width: "100%", height: "100%" }}
+          onPointerDown={handlePointerDown}
         >
-          {data.label && (
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-              {data.label}
+          {CustomNodeComponent ? (
+            <CustomNodeComponent
+              node={node}
+              editor={editor}
+              isSelected={isSelected!}
+              onNodeInteraction={onNodeInteraction}
+            />
+          ) : (
+            <div
+              style={{
+                backgroundColor: "#fff",
+                border: isSelected ? "2px solid #3182ce" : "1px solid #e2e8f0",
+                borderRadius: "4px",
+                boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
+                padding: "8px",
+                width: "100%",
+                height: "100%",
+                boxSizing: "border-box",
+              }}
+            >
+              {data.label && (
+                <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+                  {data.label}
+                </div>
+              )}
+              {data.content && <div>{data.content}</div>}
+              {!data.label && !data.content && <div>{type}</div>}
             </div>
           )}
-          {data.content && <div>{data.content}</div>}
-          {!data.label && !data.content && <div>{type}</div>}
         </div>
-      )}
+      </Resizable>
     </div>
   );
 };

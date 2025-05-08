@@ -1,6 +1,6 @@
 import { createContext, useContext, useSyncExternalStore } from "react";
 import type { Editor } from "../editor";
-import type { CanvasState } from "../state";
+import type { CanvasState } from "../canvas-state";
 
 interface CanvasContextType {
   editor: Editor;

@@ -3,6 +3,6 @@ export * from "./event-emitter";
 export * from "./svg";
 export * from "./utils";
 export * from "./react";
-export * from "./state";
+export * from "./canvas-state";
 export * from "./editor";
 export * from "./types";

@@ -6,7 +6,7 @@ import {
   type ReactNode,
   useEffect,
 } from "react";
-import type { CanvasState } from "../state";
+import type { CanvasState } from "../canvas-state";
 import type { Node, Edge, Point } from "../types";
 import { SelectionBox } from "./selection";
 import { CanvasContext, useEditorState } from "./context";
