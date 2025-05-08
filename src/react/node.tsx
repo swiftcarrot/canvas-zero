@@ -51,7 +51,7 @@ export const NodeRenderer = ({
         top: position.y,
         cursor: "move",
         userSelect: "none",
-        zIndex: isSelected ? 1 : 0,
+        zIndex: node.type === "group" ? 0 : isSelected ? 2 : 1,
       }}
     >
       <Resizable

@@ -13,7 +13,6 @@ import { CanvasContext, useEditorState } from "./context";
 import { NodeRenderer, type CustomNodeProps } from "./node";
 import { EdgeRenderer, type CustomEdgeProps } from "./edge";
 import { GroupNode } from "./group-node";
-import { GroupActionButton } from "./group-action-button";
 import { BackgroundGrid } from "./background-grid";
 
 export interface CanvasProps {
@@ -91,6 +90,12 @@ export function CanvasContent({
             editor.deleteNode(nodeId);
           });
         }
+
+        // Create group: Ctrl+G or Cmd+G
+        // if ((e.ctrlKey || e.metaKey) && e.key === "g") {
+        //   e.preventDefault();
+        //   editor.createGroup();
+        // }
 
         // Undo: Ctrl+Z or Cmd+Z
         if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
@@ -326,8 +331,6 @@ export function CanvasContent({
           <SelectionBox box={renderSelectionBox} />
         </div>
       )}
-
-      <GroupActionButton position="top-right" />
 
       {children}
     </div>

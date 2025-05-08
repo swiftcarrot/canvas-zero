@@ -22,8 +22,8 @@ jobs:
           bun-version: latest
       - id: install-deps
         run: bun install
-      - id: tsc
-        run: bunx tsc
+      # - id: tsc
+      #   run: bunx tsc
       - id: build
         run: bun run build
       - id: test

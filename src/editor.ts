@@ -91,8 +91,21 @@ export class Editor {
     const snappedDeltaX = this.snapToGrid(deltaX);
     const snappedDeltaY = this.snapToGrid(deltaY);
 
+    // Expand nodeIds to include children of group nodes
+    const allNodeIds = new Set<string>(nodeIds);
+    for (const nodeId of nodeIds) {
+      const node = this.state.getNodeById(nodeId);
+      // If this is a group node, include all its children
+      if (node?.type === "group" && node.data.childNodeIds) {
+        const childNodeIds = node.data.childNodeIds as string[];
+        childNodeIds.forEach((id) => allNodeIds.add(id));
+      }
+    }
+
+    const finalNodeIds = Array.from(allNodeIds);
+
     // Store original positions for undo
-    const originalPositions = nodeIds
+    const originalPositions = finalNodeIds
       .map((nodeId) => {
         const node = this.state.getNodeById(nodeId);
         return { nodeId, position: node ? { ...node.position } : undefined };
@@ -102,7 +115,7 @@ export class Editor {
     this.undoStack.push(
       () => {
         this.state.nodes = this.state.nodes.map((node) => {
-          if (nodeIds.includes(node.id)) {
+          if (finalNodeIds.includes(node.id)) {
             return {
               ...node,
               position: this.snapPointToGrid({
@@ -114,9 +127,9 @@ export class Editor {
           return node;
         });
 
-        nodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
+        finalNodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
         this.triggerUpdate("nodes-moved", {
-          nodeIds,
+          nodeIds: finalNodeIds,
           delta: { x: snappedDeltaX, y: snappedDeltaY },
         });
       },
@@ -135,9 +148,9 @@ export class Editor {
           return node;
         });
 
-        nodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
+        finalNodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
         this.triggerUpdate("nodes-moved", {
-          nodeIds,
+          nodeIds: finalNodeIds,
           delta: { x: -snappedDeltaX, y: -snappedDeltaY },
         });
       },
@@ -635,7 +648,7 @@ export class Editor {
 
     if (edge.fromHandleId) {
       const node = this.state.getNodeById(edge.fromNodeId!);
-      if (node && node.handles) {
+      if (node && node.type !== "group" && node.handles) {
         const handle = node.handles[edge.fromHandleId];
         if (handle) {
           // TODO: container offset
@@ -656,7 +669,7 @@ export class Editor {
 
     if (edge.toHandleId) {
       const node = this.state.getNodeById(edge.toNodeId!);
-      if (node && node.handles) {
+      if (node && node.type !== "group" && node.handles) {
         const handle = node.handles[edge.toHandleId];
         if (handle) {
           p2 = {
@@ -694,6 +707,7 @@ export class Editor {
   }
 
   createGroup(nodeIds?: string[], edgeIds?: string[]): Node | null {
+    console.log("createGroup", nodeIds, edgeIds);
     const selectedNodeIds = nodeIds || [...this.state.selection.nodeIds];
     const selectedEdgeIds = edgeIds || [...this.state.selection.edgeIds];
 
@@ -721,7 +735,7 @@ export class Editor {
     );
 
     // Add some padding around the group
-    const padding = this.snapToGrid(20); // Snap padding
+    const padding = this.snapToGrid(30); // Snap padding
     const groupWidth = this.snapToGrid(maxX - minX + padding * 2);
     const groupHeight = this.snapToGrid(maxY - minY + padding * 2);
     const groupPosition = this.snapPointToGrid({
@@ -734,8 +748,8 @@ export class Editor {
       id: generateId("group-"),
       type: "group",
       position: groupPosition,
-      width: groupWidth,
-      height: groupHeight,
+      width: this.snapToGrid(groupWidth),
+      height: this.snapToGrid(groupHeight),
       data: {
         label: "Group",
         childNodeIds: selectedNodeIds,
@@ -769,6 +783,7 @@ export class Editor {
         });
 
         // Add the group node to the state
+        console.log("groupNode", groupNode);
         this.state.nodes.push(groupNode);
 
         // Select only the group node

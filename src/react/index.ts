@@ -5,6 +5,5 @@ export * from "./edge";
 export * from "./handle";
 export * from "./selection";
 export * from "./group-node";
-export * from "./group-action-button";
 export * from "./debugger";
 export * from "./resizable";

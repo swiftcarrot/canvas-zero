@@ -145,6 +145,7 @@ export function Handle({
         );
 
         if (targetNodeRef.current && targetValid) {
+          console.log("createEdge");
           editor.createEdge({
             fromNodeId: nodeId as string,
             fromHandleId: handleId,
