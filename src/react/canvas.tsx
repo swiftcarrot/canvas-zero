@@ -79,19 +79,37 @@ export function CanvasContent({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        (e.key === "Backspace" || e.key === "Delete") &&
-        containerRef.current
-      ) {
-        // TODO: editor.deleteSelection()?
-        const selectedNodeIds = [...editor.state.selection.nodeIds];
-        const selectedEdgeIds = [...editor.state.selection.edgeIds];
-        selectedEdgeIds.forEach((edgeId) => {
-          editor.deleteEdge(edgeId);
-        });
-        selectedNodeIds.forEach((nodeId) => {
-          editor.deleteNode(nodeId);
-        });
+      if (containerRef.current) {
+        // Delete/Backspace key to delete selected elements
+        if (e.key === "Backspace" || e.key === "Delete") {
+          const selectedNodeIds = [...editor.state.selection.nodeIds];
+          const selectedEdgeIds = [...editor.state.selection.edgeIds];
+          selectedEdgeIds.forEach((edgeId) => {
+            editor.deleteEdge(edgeId);
+          });
+          selectedNodeIds.forEach((nodeId) => {
+            editor.deleteNode(nodeId);
+          });
+        }
+
+        // Undo: Ctrl+Z or Cmd+Z
+        if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+          e.preventDefault();
+          if (editor.canUndo()) {
+            editor.undo();
+          }
+        }
+
+        // Redo: Ctrl+Y or Cmd+Y or Ctrl+Shift+Z or Cmd+Shift+Z
+        if (
+          (e.ctrlKey || e.metaKey) &&
+          (e.key === "y" || (e.key === "z" && e.shiftKey))
+        ) {
+          e.preventDefault();
+          if (editor.canRedo()) {
+            editor.redo();
+          }
+        }
       }
     };
 

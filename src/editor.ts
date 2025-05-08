@@ -3,15 +3,18 @@ import type { Node, Edge, Point, Box, Handle } from "./types";
 import { createElbowConnector } from "./elbow-connector";
 import { generateId, GRID_SIZE, rectanglesOverlap } from "./utils";
 import { EventEmitter } from "./event-emitter";
+import { UndoStack } from "./undo-stack";
 
 export class Editor {
   state: CanvasState;
   // container: HTMLElement;
   events: EventEmitter;
+  undoStack: UndoStack;
 
   constructor(options: CanvasStateOptions = {}) {
     this.state = new CanvasState(options);
     this.events = new EventEmitter();
+    this.undoStack = new UndoStack();
     // this.container = container;
     // TODO: track container offset and size
   }
@@ -48,8 +51,18 @@ export class Editor {
       handles: {},
     };
 
-    this.state.nodes = this.state.nodes.concat([newNode]);
-    this.triggerUpdate("node-created", { node });
+    this.undoStack.push(
+      () => {
+        this.state.nodes = this.state.nodes.concat([newNode]);
+        this.triggerUpdate("node-created", { node: newNode });
+      },
+      () => {
+        this.state.nodes = this.state.nodes.filter((n) => n.id !== newNode.id);
+        this.triggerUpdate("node-deleted", { nodeId: newNode.id });
+      },
+      newNode
+    );
+
     return node;
   }
 
@@ -58,8 +71,19 @@ export class Editor {
       id: generateId("edge-"),
       ...edge,
     };
-    this.state.edges = this.state.edges.concat([newEdge]);
-    this.triggerUpdate("edge-created", { edge });
+
+    this.undoStack.push(
+      () => {
+        this.state.edges = this.state.edges.concat([newEdge]);
+        this.triggerUpdate("edge-created", { edge: newEdge });
+      },
+      () => {
+        this.state.edges = this.state.edges.filter((e) => e.id !== newEdge.id);
+        this.triggerUpdate("edge-deleted", { edgeId: newEdge.id });
+      },
+      newEdge
+    );
+
     return edge;
   }
 
@@ -67,24 +91,61 @@ export class Editor {
     const snappedDeltaX = this.snapToGrid(deltaX);
     const snappedDeltaY = this.snapToGrid(deltaY);
 
-    this.state.nodes = this.state.nodes.map((node) => {
-      if (nodeIds.includes(node.id)) {
-        return {
-          ...node,
-          position: this.snapPointToGrid({
-            x: node.position.x + snappedDeltaX,
-            y: node.position.y + snappedDeltaY,
-          }),
-        };
-      }
-      return node;
-    });
+    // Store original positions for undo
+    const originalPositions = nodeIds
+      .map((nodeId) => {
+        const node = this.state.getNodeById(nodeId);
+        return { nodeId, position: node ? { ...node.position } : undefined };
+      })
+      .filter((item) => item.position !== undefined);
 
-    nodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
-    this.triggerUpdate("nodes-moved", {
+    this.undoStack.push(
+      () => {
+        this.state.nodes = this.state.nodes.map((node) => {
+          if (nodeIds.includes(node.id)) {
+            return {
+              ...node,
+              position: this.snapPointToGrid({
+                x: node.position.x + snappedDeltaX,
+                y: node.position.y + snappedDeltaY,
+              }),
+            };
+          }
+          return node;
+        });
+
+        nodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
+        this.triggerUpdate("nodes-moved", {
+          nodeIds,
+          delta: { x: snappedDeltaX, y: snappedDeltaY },
+        });
+      },
+      () => {
+        // Restore original positions
+        this.state.nodes = this.state.nodes.map((node) => {
+          const originalPosition = originalPositions.find(
+            (p) => p.nodeId === node.id
+          )?.position;
+          if (originalPosition) {
+            return {
+              ...node,
+              position: originalPosition,
+            };
+          }
+          return node;
+        });
+
+        nodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
+        this.triggerUpdate("nodes-moved", {
+          nodeIds,
+          delta: { x: -snappedDeltaX, y: -snappedDeltaY },
+        });
+      },
       nodeIds,
-      delta: { x: snappedDeltaX, y: snappedDeltaY },
-    });
+      snappedDeltaX,
+      snappedDeltaY,
+      originalPositions
+    );
   }
 
   updateEdgesForNode(nodeId: string) {
@@ -98,42 +159,135 @@ export class Editor {
   resizeNode(nodeId: string, width: number, height: number) {
     const node = this.state.getNodeById(nodeId);
     if (node) {
-      node.width = this.snapToGrid(width);
-      node.height = this.snapToGrid(height);
-      // Update any connected edges as the connection points may have changed
-      this.updateEdgesForNode(nodeId);
-      this.triggerUpdate("node-resized", {
+      const originalWidth = node.width;
+      const originalHeight = node.height;
+      const newWidth = this.snapToGrid(width);
+      const newHeight = this.snapToGrid(height);
+
+      this.undoStack.push(
+        () => {
+          const n = this.state.getNodeById(nodeId);
+          if (n) {
+            n.width = newWidth;
+            n.height = newHeight;
+            this.updateEdgesForNode(nodeId);
+            this.triggerUpdate("node-resized", {
+              nodeId,
+              size: { width: newWidth, height: newHeight },
+            });
+          }
+        },
+        () => {
+          const n = this.state.getNodeById(nodeId);
+          if (n) {
+            n.width = originalWidth;
+            n.height = originalHeight;
+            this.updateEdgesForNode(nodeId);
+            this.triggerUpdate("node-resized", {
+              nodeId,
+              size: { width: originalWidth, height: originalHeight },
+            });
+          }
+        },
         nodeId,
-        size: { width: node.width, height: node.height },
-      });
+        width,
+        height,
+        originalWidth,
+        originalHeight
+      );
     }
   }
 
   // Delete a node and its connected edges
   deleteNode(nodeId: string) {
-    // Delete any connected edges first
+    // Save the node and its connected edges for possible undo
+    const nodeToDelete = this.state.getNodeById(nodeId);
     const connectedEdges = this.state.getEdgesByNodeId(nodeId);
-    connectedEdges.forEach((edge) => {
-      this.deleteEdge(edge.id);
-    });
+    const wasSelected = this.state.selection.nodeIds.includes(nodeId);
 
-    // Now remove the node
-    this.state.nodes = this.state.nodes.filter((node) => node.id !== nodeId);
+    if (!nodeToDelete) return;
 
-    // Update selection if needed
-    this.state.selection.nodeIds = this.state.selection.nodeIds.filter(
-      (id) => id !== nodeId
+    this.undoStack.push(
+      () => {
+        // Delete any connected edges first
+        const connectedEdges = this.state.getEdgesByNodeId(nodeId);
+        connectedEdges.forEach((edge) => {
+          this.deleteEdge(edge.id);
+        });
+
+        // Now remove the node
+        this.state.nodes = this.state.nodes.filter(
+          (node) => node.id !== nodeId
+        );
+
+        // Update selection if needed
+        this.state.selection.nodeIds = this.state.selection.nodeIds.filter(
+          (id) => id !== nodeId
+        );
+
+        this.triggerUpdate("node-deleted", { nodeId });
+      },
+      () => {
+        // Restore node
+        this.state.nodes = [...this.state.nodes, nodeToDelete];
+
+        // Restore connected edges
+        this.state.edges = [...this.state.edges, ...connectedEdges];
+
+        // Restore selection if it was selected
+        if (wasSelected && !this.state.selection.nodeIds.includes(nodeId)) {
+          this.state.selection.nodeIds = [
+            ...this.state.selection.nodeIds,
+            nodeId,
+          ];
+        }
+
+        this.triggerUpdate("node-created", { node: nodeToDelete });
+        connectedEdges.forEach((edge) => {
+          this.triggerUpdate("edge-created", { edge });
+        });
+      },
+      nodeId,
+      nodeToDelete,
+      connectedEdges,
+      wasSelected
     );
-
-    this.triggerUpdate("node-deleted", { nodeId });
   }
 
   deleteEdge(edgeId: string) {
-    this.state.edges = this.state.edges.filter((edge) => edge.id !== edgeId);
-    this.state.selection.edgeIds = this.state.selection.edgeIds.filter(
-      (id) => id !== edgeId
+    const edgeToDelete = this.state.getEdgeById(edgeId);
+    const wasSelected = this.state.selection.edgeIds.includes(edgeId);
+
+    if (!edgeToDelete) return;
+
+    this.undoStack.push(
+      () => {
+        this.state.edges = this.state.edges.filter(
+          (edge) => edge.id !== edgeId
+        );
+        this.state.selection.edgeIds = this.state.selection.edgeIds.filter(
+          (id) => id !== edgeId
+        );
+        this.triggerUpdate("edge-deleted", { edgeId });
+      },
+      () => {
+        // Restore edge
+        this.state.edges = [...this.state.edges, edgeToDelete];
+
+        // Restore selection if it was selected
+        if (wasSelected && !this.state.selection.edgeIds.includes(edgeId)) {
+          this.state.selection.edgeIds = [
+            ...this.state.selection.edgeIds,
+            edgeId,
+          ];
+        }
+
+        this.triggerUpdate("edge-created", { edge: edgeToDelete });
+      },
+      edgeId,
+      edgeToDelete,
+      wasSelected
     );
-    this.triggerUpdate("edge-deleted", { edgeId });
   }
 
   // Zoom the canvas view
@@ -155,6 +309,12 @@ export class Editor {
     // Convert center point to canvas coordinates before zoom
     const centerInCanvas = this.state.screenToCanvas(center);
 
+    // Store original viewport state
+    const originalViewport = {
+      box: { ...this.state.viewport.box },
+      zoom: this.state.viewport.zoom,
+    };
+
     // Apply zoom
     const newZoom = Math.min(
       Math.max(0.1, this.state.viewport.zoom * scale),
@@ -162,32 +322,90 @@ export class Editor {
     ); // Limit zoom to reasonable bounds
     const zoomFactor = newZoom / this.state.viewport.zoom;
 
-    // Update the viewport position to keep the center point fixed
-    this.state.viewport.box = {
-      x:
-        centerInCanvas.x -
-        (centerInCanvas.x - this.state.viewport.box.x) / zoomFactor,
-      y:
-        centerInCanvas.y -
-        (centerInCanvas.y - this.state.viewport.box.y) / zoomFactor,
-      w: this.state.viewport.box.w,
-      h: this.state.viewport.box.h,
-    };
+    this.undoStack.push(
+      () => {
+        // Update the viewport position to keep the center point fixed
+        this.state.viewport.box = {
+          x:
+            centerInCanvas.x -
+            (centerInCanvas.x - this.state.viewport.box.x) / zoomFactor,
+          y:
+            centerInCanvas.y -
+            (centerInCanvas.y - this.state.viewport.box.y) / zoomFactor,
+          w: this.state.viewport.box.w,
+          h: this.state.viewport.box.h,
+        };
 
-    // Set the new zoom level
-    this.state.viewport.zoom = newZoom;
-    this.triggerUpdate("viewport-changed", { viewport: this.state.viewport });
+        // Set the new zoom level
+        this.state.viewport.zoom = newZoom;
+        this.triggerUpdate("viewport-changed", {
+          viewport: this.state.viewport,
+        });
+      },
+      () => {
+        // Restore original viewport state
+        this.state.viewport.box = { ...originalViewport.box };
+        this.state.viewport.zoom = originalViewport.zoom;
+        this.triggerUpdate("viewport-changed", {
+          viewport: this.state.viewport,
+        });
+      },
+      scale,
+      center,
+      originalViewport,
+      newZoom
+    );
   }
 
   // Pan the canvas view
   pan(deltaX: number, deltaY: number) {
-    this.state.viewport.box = {
-      ...this.state.viewport.box,
-      x: this.state.viewport.box.x - deltaX / this.state.viewport.zoom,
-      y: this.state.viewport.box.y - deltaY / this.state.viewport.zoom,
-    };
+    const originalBox = { ...this.state.viewport.box };
 
-    this.triggerUpdate("viewport-changed", { viewport: this.state.viewport });
+    this.undoStack.push(
+      () => {
+        this.state.viewport.box = {
+          ...this.state.viewport.box,
+          x: this.state.viewport.box.x - deltaX / this.state.viewport.zoom,
+          y: this.state.viewport.box.y - deltaY / this.state.viewport.zoom,
+        };
+
+        this.triggerUpdate("viewport-changed", {
+          viewport: this.state.viewport,
+        });
+      },
+      () => {
+        this.state.viewport.box = { ...originalBox };
+        this.triggerUpdate("viewport-changed", {
+          viewport: this.state.viewport,
+        });
+      },
+      deltaX,
+      deltaY,
+      originalBox
+    );
+  }
+
+  undo() {
+    this.undoStack.undo();
+    this.triggerUpdate("undo-performed");
+  }
+
+  redo() {
+    this.undoStack.redo();
+    this.triggerUpdate("redo-performed");
+  }
+
+  canUndo() {
+    return this.undoStack.undoAvailable;
+  }
+
+  canRedo() {
+    return this.undoStack.redoAvailable;
+  }
+
+  clearHistory() {
+    this.undoStack.clear();
+    this.triggerUpdate("history-cleared");
   }
 
   select(
@@ -195,23 +413,48 @@ export class Editor {
     edgeIds: string[] = [],
     exclusive: boolean = true
   ) {
-    if (exclusive) {
-      this.state.clearSelection();
-    }
+    // Store original selection
+    const originalSelection = {
+      nodeIds: [...this.state.selection.nodeIds],
+      edgeIds: [...this.state.selection.edgeIds],
+      box: this.state.selection.box,
+    };
 
-    this.state.selection.nodeIds = [
-      ...this.state.selection.nodeIds,
-      ...nodeIds.filter((id) => !this.state.selection.nodeIds.includes(id)),
-    ];
+    this.undoStack.push(
+      () => {
+        if (exclusive) {
+          this.state.clearSelection();
+        }
 
-    this.state.selection.edgeIds = [
-      ...this.state.selection.edgeIds,
-      ...edgeIds.filter((id) => !this.state.selection.edgeIds.includes(id)),
-    ];
+        this.state.selection.nodeIds = [
+          ...this.state.selection.nodeIds,
+          ...nodeIds.filter((id) => !this.state.selection.nodeIds.includes(id)),
+        ];
 
-    this.triggerUpdate("selection-changed", {
-      selection: this.state.selection,
-    });
+        this.state.selection.edgeIds = [
+          ...this.state.selection.edgeIds,
+          ...edgeIds.filter((id) => !this.state.selection.edgeIds.includes(id)),
+        ];
+
+        this.triggerUpdate("selection-changed", {
+          selection: this.state.selection,
+        });
+      },
+      () => {
+        // Restore original selection
+        this.state.selection.nodeIds = [...originalSelection.nodeIds];
+        this.state.selection.edgeIds = [...originalSelection.edgeIds];
+        this.state.selection.box = originalSelection.box;
+
+        this.triggerUpdate("selection-changed", {
+          selection: this.state.selection,
+        });
+      },
+      nodeIds,
+      edgeIds,
+      exclusive,
+      originalSelection
+    );
   }
 
   selectAll() {
@@ -272,16 +515,47 @@ export class Editor {
       );
     });
 
-    // Update selection
-    this.select(
-      selectedNodes.map((node) => node.id),
-      selectedEdges.map((edge) => edge.id),
-      true // Replace current selection
-    );
+    // Store original selection and box
+    const originalSelection = {
+      nodeIds: [...this.state.selection.nodeIds],
+      edgeIds: [...this.state.selection.edgeIds],
+      box: this.state.selection.box,
+    };
 
-    // Update selection box
-    this.state.selection.box = snappedRect;
-    this.triggerUpdate("selection-rect-changed", { rect: snappedRect });
+    this.undoStack.push(
+      () => {
+        // Update selection
+        this.select(
+          selectedNodes.map((node) => node.id),
+          selectedEdges.map((edge) => edge.id),
+          true // Replace current selection
+        );
+
+        // Update selection box
+        this.state.selection.box = snappedRect;
+        this.triggerUpdate("selection-rect-changed", { rect: snappedRect });
+      },
+      () => {
+        // Restore original selection
+        this.state.selection.nodeIds = [...originalSelection.nodeIds];
+        this.state.selection.edgeIds = [...originalSelection.edgeIds];
+        this.state.selection.box = originalSelection.box;
+
+        this.triggerUpdate("selection-changed", {
+          selection: this.state.selection,
+        });
+
+        if (originalSelection.box) {
+          this.triggerUpdate("selection-rect-changed", {
+            rect: originalSelection.box,
+          });
+        }
+      },
+      rect,
+      selectedNodes,
+      selectedEdges,
+      originalSelection
+    );
   }
 
   // Start dragging a node
@@ -478,23 +752,68 @@ export class Editor {
       handles: {},
     };
 
-    // Adjust positions of child nodes to be relative to the group
-    // This keeps their visual positions the same but makes them children of the group
-    selectedNodes.forEach((node) => {
-      node.data = {
-        ...node.data,
-        parentId: groupNode.id,
-        originalPosition: { ...node.position }, // Store original position
-      };
-    });
+    // Store original node data for undo
+    const originalNodesData = selectedNodes.map((node) => ({
+      id: node.id,
+      data: { ...node.data },
+    }));
 
-    // Add the group node to the state
-    this.state.nodes.push(groupNode);
+    // Store original selection
+    const originalSelection = {
+      nodeIds: [...this.state.selection.nodeIds],
+      edgeIds: [...this.state.selection.edgeIds],
+    };
 
-    // Select only the group node
-    this.select([groupNode.id], [], true);
+    this.undoStack.push(
+      () => {
+        // Adjust positions of child nodes to be relative to the group
+        // This keeps their visual positions the same but makes them children of the group
+        selectedNodes.forEach((node) => {
+          node.data = {
+            ...node.data,
+            parentId: groupNode.id,
+            originalPosition: { ...node.position }, // Store original position
+          };
+        });
 
-    this.triggerUpdate("group-created", { group: groupNode });
+        // Add the group node to the state
+        this.state.nodes.push(groupNode);
+
+        // Select only the group node
+        this.select([groupNode.id], [], true);
+
+        this.triggerUpdate("group-created", { group: groupNode });
+      },
+      () => {
+        // Remove the group node
+        this.state.nodes = this.state.nodes.filter(
+          (node) => node.id !== groupNode.id
+        );
+
+        // Restore original node data (removing parent references)
+        selectedNodes.forEach((node) => {
+          const originalData = originalNodesData.find((n) => n.id === node.id);
+          if (originalData) {
+            node.data = { ...originalData.data };
+          }
+        });
+
+        // Restore original selection
+        this.state.selection.nodeIds = [...originalSelection.nodeIds];
+        this.state.selection.edgeIds = [...originalSelection.edgeIds];
+
+        this.triggerUpdate("group-deleted", {
+          groupId: groupNode.id,
+          childNodeIds: selectedNodeIds,
+        });
+      },
+      groupNode,
+      selectedNodes,
+      selectedNodeIds,
+      selectedEdgeIds,
+      originalNodesData,
+      originalSelection
+    );
 
     return groupNode;
   }
@@ -531,41 +850,97 @@ export class Editor {
       return null;
     }
 
-    // Remove parent reference from child nodes
-    childNodes.forEach((node) => {
-      if (node.data.parentId === groupNode.id) {
-        const { parentId, originalPosition, ...rest } = node.data;
-        node.data = rest;
-      }
-    });
+    // Store the group data and child node data for possible undo
+    const groupData = { ...groupNode };
+    const childNodesData = childNodes.map((node) => ({
+      id: node.id,
+      data: { ...node.data },
+    }));
 
-    // Remove the group node
-    this.state.nodes = this.state.nodes.filter(
-      (node) => node.id !== groupNode.id
+    this.undoStack.push(
+      () => {
+        // Remove parent reference from child nodes
+        childNodes.forEach((node) => {
+          if (node.data.parentId === groupNode.id) {
+            const { parentId, originalPosition, ...rest } = node.data;
+            node.data = rest;
+          }
+        });
+
+        // Remove the group node
+        this.state.nodes = this.state.nodes.filter(
+          (node) => node.id !== groupNode.id
+        );
+
+        // Select the ungrouped nodes
+        this.select(childNodeIds, [], true);
+
+        this.triggerUpdate("group-deleted", {
+          groupId: groupNode.id,
+          childNodeIds,
+        });
+      },
+      () => {
+        // Restore group node
+        this.state.nodes.push(groupData);
+
+        // Restore parent references in child nodes
+        childNodes.forEach((node) => {
+          const originalData = childNodesData.find((n) => n.id === node.id);
+          if (originalData) {
+            node.data = { ...originalData.data };
+          }
+        });
+
+        // Select only the group node
+        this.select([groupId], [], true);
+
+        this.triggerUpdate("group-created", { group: groupData });
+      },
+      groupNode,
+      childNodes,
+      childNodeIds
     );
-
-    // Select the ungrouped nodes
-    this.select(childNodeIds, [], true);
-
-    this.triggerUpdate("group-deleted", {
-      groupId: groupNode.id,
-      childNodeIds,
-    });
 
     return childNodes;
   }
 
   updateState(state: Partial<CanvasStateOptions>) {
-    if (state.nodes) {
-      this.state.nodes = state.nodes;
-    }
-    if (state.edges) {
-      this.state.edges = state.edges;
-    }
-    if (state.viewport) {
-      this.state.viewport = state.viewport;
-    }
+    const originalState = {
+      nodes: [...this.state.nodes],
+      edges: [...this.state.edges],
+      viewport: { ...this.state.viewport },
+    };
 
-    // this.triggerUpdate("state-updated", { state });
+    this.undoStack.push(
+      () => {
+        if (state.nodes) {
+          this.state.nodes = state.nodes;
+        }
+        if (state.edges) {
+          this.state.edges = state.edges;
+        }
+        if (state.viewport) {
+          this.state.viewport = state.viewport;
+        }
+
+        this.triggerUpdate("state-updated", { state });
+      },
+      () => {
+        if (state.nodes) {
+          this.state.nodes = originalState.nodes;
+        }
+        if (state.edges) {
+          this.state.edges = originalState.edges;
+        }
+        if (state.viewport) {
+          this.state.viewport = originalState.viewport;
+        }
+
+        this.triggerUpdate("state-updated", { state: originalState });
+      },
+      state,
+      originalState
+    );
   }
 }
