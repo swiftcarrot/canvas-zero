@@ -1,9 +1,9 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 import type { Editor } from "../editor";
+import type { CanvasState } from "../state";
 
 interface CanvasContextType {
   editor: Editor;
-  updateCanvas: () => void;
 }
 
 export const CanvasContext = createContext<CanvasContextType | null>(null);
@@ -14,4 +14,18 @@ export function useCanvas(): CanvasContextType {
     throw new Error("useCanvas must be used within a Canvas component");
   }
   return context;
+}
+
+export function useEditorState<T>(
+  selector: (state: CanvasState) => T
+): T | null {
+  const { editor } = useContext(CanvasContext)!;
+
+  return useSyncExternalStore(
+    (callback) => {
+      const unsubscribe = editor.events.on("canvas:update", callback);
+      return unsubscribe;
+    },
+    () => selector(editor.state)
+  );
 }

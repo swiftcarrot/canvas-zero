@@ -6,15 +6,17 @@ import { EventEmitter } from "./event-emitter";
 
 export class Editor {
   state: CanvasState;
-  container: HTMLElement;
+  // container: HTMLElement;
   events: EventEmitter;
 
-  constructor(options: CanvasStateOptions = {}, container: HTMLElement) {
+  constructor(options: CanvasStateOptions = {}) {
     this.state = new CanvasState(options);
     this.events = new EventEmitter();
-    this.container = container;
+    // this.container = container;
+    // TODO: track container offset and size
   }
 
+  // TODO: add support for different grid sizes
   public snapToGrid(value: number): number {
     return Math.round(value / GRID_SIZE) * GRID_SIZE;
   }
@@ -26,63 +28,38 @@ export class Editor {
     };
   }
 
-  private triggerUpdate(eventType: string, payload?: any) {
+  // TODO: should combine multiple consecutive updates
+  triggerUpdate(eventType: string, payload?: any) {
     this.events.emit("canvas:update", { type: eventType, ...payload });
   }
 
-  createNode(
-    type: string,
-    position: Point,
-    data: any = {},
-    width = 100,
-    height = 80
-  ): Node {
-    const snappedPosition = this.snapPointToGrid(position);
-    const snappedWidth = this.snapToGrid(width);
-    const snappedHeight = this.snapToGrid(height);
+  createNode(node: Partial<Node>) {
+    const snappedPosition = this.snapPointToGrid(node.position!);
+    const snappedWidth = this.snapToGrid(node.width!);
+    const snappedHeight = this.snapToGrid(node.height!);
 
-    const node: Node = {
+    const newNode: Node = {
       id: generateId("node-"),
-      type,
+      type: node.type!,
       position: snappedPosition,
       width: snappedWidth,
       height: snappedHeight,
-      data,
+      data: node.data!,
       handles: {},
     };
 
-    this.state.nodes.push(node);
+    this.state.nodes = this.state.nodes.concat([newNode]);
     this.triggerUpdate("node-created", { node });
-
     return node;
   }
 
-  createEdge(
-    fromNodeId: string,
-    toNodeId: string,
-    fromHandleId: string = "default",
-    toHandleId: string = "default",
-    type: string = "default"
-  ): Edge | null {
-    const fromNode = this.state.getNodeById(fromNodeId);
-    const toNode = this.state.getNodeById(toNodeId);
-
-    if (!fromNode || !toNode) {
-      return null;
-    }
-
-    const edge: Edge = {
+  createEdge(edge: Partial<Edge>) {
+    const newEdge: Edge = {
       id: generateId("edge-"),
-      type,
-      fromNodeId,
-      toNodeId,
-      fromHandleId,
-      toHandleId,
+      ...edge,
     };
-
-    this.state.edges.push(edge);
+    this.state.edges = this.state.edges.concat([newEdge]);
     this.triggerUpdate("edge-created", { edge });
-
     return edge;
   }
 
@@ -90,14 +67,17 @@ export class Editor {
     const snappedDeltaX = this.snapToGrid(deltaX);
     const snappedDeltaY = this.snapToGrid(deltaY);
 
-    nodeIds.forEach((nodeId) => {
-      const node = this.state.getNodeById(nodeId);
-      if (node) {
-        node.position = this.snapPointToGrid({
-          x: node.position.x + snappedDeltaX,
-          y: node.position.y + snappedDeltaY,
-        });
+    this.state.nodes = this.state.nodes.map((node) => {
+      if (nodeIds.includes(node.id)) {
+        return {
+          ...node,
+          position: this.snapPointToGrid({
+            x: node.position.x + snappedDeltaX,
+            y: node.position.y + snappedDeltaY,
+          }),
+        };
       }
+      return node;
     });
 
     nodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
@@ -107,7 +87,7 @@ export class Editor {
     });
   }
 
-  private updateEdgesForNode(nodeId: string) {
+  updateEdgesForNode(nodeId: string) {
     const edges = this.state.getEdgesByNodeId(nodeId);
     for (const edge of edges) {
       this.renderEdge(edge);
@@ -148,14 +128,11 @@ export class Editor {
     this.triggerUpdate("node-deleted", { nodeId });
   }
 
-  // Delete an edge
   deleteEdge(edgeId: string) {
-    const edge = this.state.getEdgeById(edgeId);
     this.state.edges = this.state.edges.filter((edge) => edge.id !== edgeId);
     this.state.selection.edgeIds = this.state.selection.edgeIds.filter(
       (id) => id !== edgeId
     );
-
     this.triggerUpdate("edge-deleted", { edgeId });
   }
 
@@ -213,7 +190,6 @@ export class Editor {
     this.triggerUpdate("viewport-changed", { viewport: this.state.viewport });
   }
 
-  // Select nodes and edges (can be multiple)
   select(
     nodeIds: string[] = [],
     edgeIds: string[] = [],
@@ -223,7 +199,6 @@ export class Editor {
       this.state.clearSelection();
     }
 
-    // Add the new selections
     this.state.selection.nodeIds = [
       ...this.state.selection.nodeIds,
       ...nodeIds.filter((id) => !this.state.selection.nodeIds.includes(id)),
@@ -386,7 +361,7 @@ export class Editor {
     }
   }
 
-  renderEdge(edge: Edge) {
+  getEdgePoints(edge: Edge): Point[] {
     let p1 = edge.from;
     let p2 = edge.to;
     let rect1: Box | undefined;
@@ -433,9 +408,23 @@ export class Editor {
     }
 
     if (p1 && p2) {
-      edge.points = createElbowConnector(p1, p2, rect1, rect2);
-      this.triggerUpdate("edge-updated", { edge });
+      return createElbowConnector(p1, p2, rect1, rect2);
     }
+    return [];
+  }
+
+  renderEdge(edge: Edge) {
+    this.state.edges = this.state.edges.map((e) => {
+      if (e.id === edge.id) {
+        return {
+          ...e,
+          points: this.getEdgePoints(edge),
+        };
+      }
+      return e;
+    });
+
+    this.triggerUpdate("edge-updated", { edge });
   }
 
   createGroup(nodeIds?: string[], edgeIds?: string[]): Node | null {

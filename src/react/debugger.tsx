@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useCanvas } from "./context";
+import { useCanvas, useEditorState } from "./context";
 
 interface DebuggerProps {
   className?: string;
@@ -7,13 +7,13 @@ interface DebuggerProps {
 }
 
 export function Debugger({ className, style }: DebuggerProps) {
-  const { editor } = useCanvas();
   const [isOpen, setIsOpen] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
-  const serializableState = editor.state.getSerializableState();
+  const { editor } = useCanvas();
+  const state = useEditorState((state) => state);
 
   const handleCopyClick = () => {
-    const stateJson = JSON.stringify(serializableState, null, 2);
+    const stateJson = JSON.stringify(state, null, 2);
     navigator.clipboard.writeText(stateJson).then(
       () => {
         setCopySuccess(true);
@@ -136,7 +136,7 @@ export function Debugger({ className, style }: DebuggerProps) {
             }}
           >
             <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-              {JSON.stringify(serializableState, null, 2)}
+              {JSON.stringify(state, null, 2)}
             </pre>
           </div>
         </div>

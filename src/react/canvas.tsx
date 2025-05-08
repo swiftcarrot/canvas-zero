@@ -1,15 +1,15 @@
 import { Editor } from "../editor";
 import {
   useRef,
-  useEffect,
   useState,
   useCallback,
   type ReactNode,
+  useEffect,
 } from "react";
 import type { CanvasState } from "../state";
 import type { Node, Edge, Point } from "../types";
 import { SelectionBox } from "./selection";
-import { CanvasContext } from "./context";
+import { CanvasContext, useEditorState } from "./context";
 import { NodeRenderer, type CustomNodeProps } from "./node";
 import { EdgeRenderer, type CustomEdgeProps } from "./edge";
 import { GroupNode } from "./group-node";
@@ -19,7 +19,7 @@ import { BackgroundGrid } from "./background-grid";
 export interface CanvasProps {
   style?: React.CSSProperties;
   className?: string;
-  state?: Partial<CanvasState>;
+  initialState?: Partial<CanvasState>;
   onStateChange?: (state: Pick<CanvasState, "nodes" | "edges">) => void;
   nodeTypes?: Record<string, React.ComponentType<CustomNodeProps>>;
   edgeTypes?: Record<string, React.ComponentType<CustomEdgeProps>>;
@@ -27,76 +27,49 @@ export interface CanvasProps {
   editorRef?: React.RefObject<Editor | null>;
 }
 
-export function Canvas({
+interface CanvasContentProps extends CanvasProps {
+  editor: Editor;
+}
+
+export function Canvas({ initialState, editorRef, ...props }: CanvasProps) {
+  const editor = useRef<Editor>(
+    new Editor(
+      initialState
+        ? { nodes: initialState.nodes, edges: initialState.edges }
+        : {}
+    )
+  );
+  window.editor = editor.current;
+  editorRef.current = editor.current;
+
+  return (
+    <CanvasContext.Provider value={{ editor: editor.current }}>
+      <CanvasContent editor={editor.current} {...props} />
+    </CanvasContext.Provider>
+  );
+}
+
+export function CanvasContent({
   style,
   className,
-  state: initialState, // Renamed to avoid conflict with component state
   onStateChange,
   children,
   nodeTypes: customNodeTypes,
   edgeTypes,
-  editorRef, // TODO: canvas ref?
-}: CanvasProps) {
-  const [editor, setEditor] = useState<Editor | null>(null);
-
+  editor,
+}: CanvasContentProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const nodeTypes = {
     group: GroupNode,
     ...customNodeTypes,
   };
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  useEffect(() => {
-    if (containerRef.current) {
-      const newEditor = new Editor(
-        initialState
-          ? { nodes: initialState.nodes, edges: initialState.edges }
-          : {},
-        containerRef.current
-      );
-      window.editor = newEditor; // For debugging
-      setEditor(newEditor);
-      if (editorRef) {
-        editorRef.current = newEditor;
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialState?.nodes, initialState?.edges, editorRef]); // editorRef is stable
-
-  const updateCanvas = useCallback(() => {
-    if (onStateChange && editor) {
-      const { nodes, edges } = editor.state;
-      onStateChange({ nodes, edges });
-    }
-  }, [editor, onStateChange]);
-
-  useEffect(() => {
-    if (!editor) return;
-    const handleCanvasUpdate = (data: any) => {
-      updateCanvas();
-      // TODO: improve editor events types
-      // if (
-      //   data.type === "node-created" ||
-      //   data.type === "edge-updated" ||
-      //   data.type === "nodes-dragged"
-      // ) {
-      //   updateCanvas();
-      // }
-    };
-
-    const unsubscribe = editor.events.on("canvas:update", handleCanvasUpdate);
-
-    return () => {
-      unsubscribe();
-    };
-  }, [editor, updateCanvas]);
-
-  useEffect(() => {
-    if (editor && initialState) {
-      editor.updateState(initialState);
-    }
-  }, [editor, initialState]);
+  const viewport = useEditorState((state) => state.viewport);
+  const nodes = useEditorState((state) => state.nodes);
+  const edges = useEditorState((state) => state.edges);
+  const selection = useEditorState((state) => state.selection);
+  const isDragging = useEditorState((state) => state.isDragging);
+  const isPanning = useEditorState((state) => state.isPanning);
 
   const [selectionBox, setSelectionBox] = useState<{
     start: Point;
@@ -104,9 +77,36 @@ export function Canvas({
     visible: boolean;
   } | null>(null);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.key === "Backspace" || e.key === "Delete") &&
+        containerRef.current
+      ) {
+        // TODO: editor.deleteSelection()?
+        const selectedNodeIds = [...editor.state.selection.nodeIds];
+        const selectedEdgeIds = [...editor.state.selection.edgeIds];
+        selectedEdgeIds.forEach((edgeId) => {
+          editor.deleteEdge(edgeId);
+        });
+        selectedNodeIds.forEach((nodeId) => {
+          editor.deleteNode(nodeId);
+        });
+      }
+    };
+
+    // Add event listener to window to catch keyboard events
+    window.addEventListener("keydown", handleKeyDown);
+
+    // Clean up the event listener when component unmounts
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [editor]);
+
   const getCanvasPoint = useCallback(
     (e: React.PointerEvent): Point => {
-      if (!containerRef.current || !editor) return { x: 0, y: 0 };
+      if (!containerRef.current) return { x: 0, y: 0 };
 
       const rect = containerRef.current.getBoundingClientRect();
       const screenPoint = {
@@ -121,7 +121,6 @@ export function Canvas({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (!editor) return;
       if (e.button === 0) {
         if (e.altKey || e.metaKey) {
           const point = { x: e.clientX, y: e.clientY };
@@ -139,15 +138,12 @@ export function Canvas({
         const point = { x: e.clientX, y: e.clientY };
         editor.startPan(point);
       }
-
-      updateCanvas();
     },
-    [editor, getCanvasPoint, updateCanvas]
+    [editor, getCanvasPoint]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (!editor) return;
       const point = { x: e.clientX, y: e.clientY };
 
       if (editor.state.isPanning) {
@@ -179,7 +175,6 @@ export function Canvas({
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
-      if (!editor) return;
       if (editor.state.isPanning) {
         editor.stopPan();
       }
@@ -187,9 +182,8 @@ export function Canvas({
         editor.stopDrag();
       }
       setSelectionBox(null);
-      updateCanvas();
     },
-    [editor, updateCanvas]
+    [editor]
   );
 
   const handleWheel = useCallback(
@@ -199,60 +193,26 @@ export function Canvas({
       // const point = { x: e.clientX, y: e.clientY };
       // if (editor) {
       //   editor.zoom(zoomFactor, point);
-      //   updateCanvas();
       // }
     },
-    [editor, updateCanvas]
+    [editor]
   );
 
   const handleNodeInteraction = useCallback(
     (e: React.PointerEvent, node: Node) => {
-      if (!editor) return;
       const canvasPoint = getCanvasPoint(e); // Already snapped
       editor.startNodeDrag(node.id, canvasPoint);
-      updateCanvas();
     },
-    [editor, getCanvasPoint, updateCanvas]
+    [editor, getCanvasPoint]
   );
 
   const handleEdgeInteraction = useCallback(
     (e: React.PointerEvent, edge: Edge) => {
-      if (!editor) return;
       // Currently just selects the edge, but could be extended for edge manipulation
       editor.select([], [edge.id], !e.shiftKey);
-      updateCanvas();
     },
-    [editor, updateCanvas]
+    [editor]
   );
-
-  // This useEffect is no longer needed as container is passed in constructor
-  // useEffect(() => {
-  //   if (containerRef.current && editor) {
-  //     editor.setContainer(containerRef.current);
-  //   }
-  // }, [editor]);
-
-  if (!editor) {
-    // Render a loading state or null while editor is being initialized
-    return (
-      <div
-        ref={containerRef}
-        className={className}
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          width: "100%",
-          height: "100%",
-          backgroundColor: "#f7fafc",
-          ...style,
-        }}
-        // Add touch-action none here as well for consistency before editor loads
-        touch-action="none"
-      >
-        {/* Optionally, render a loading indicator */}
-      </div>
-    );
-  }
 
   const renderSelectionBox = selectionBox?.visible
     ? {
@@ -263,60 +223,77 @@ export function Canvas({
       }
     : null;
 
-  const viewportTransform = `translate(${
-    -editor.state.viewport.box.x * editor.state.viewport.zoom
-  }, ${-editor.state.viewport.box.y * editor.state.viewport.zoom}) scale(${
-    editor.state.viewport.zoom
-  })`;
+  const viewportTransform = `translate(${-viewport.box.x * viewport.zoom}, ${
+    -viewport.box.y * viewport.zoom
+  }) scale(${viewport.zoom})`;
 
   return (
-    <CanvasContext.Provider value={{ editor, updateCanvas }}>
-      <div
-        ref={containerRef}
-        className={className}
+    <div
+      ref={containerRef}
+      className={className}
+      style={{
+        position: "relative",
+        overflow: "hidden",
+        width: "100%",
+        height: "100%",
+        backgroundColor: "#f7fafc",
+        cursor: isPanning ? "grabbing" : "default",
+        ...style,
+      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onWheel={handleWheel}
+      onPointerCancel={handlePointerUp}
+      touch-action="none"
+    >
+      <BackgroundGrid viewport={viewport} />
+
+      <svg
         style={{
-          position: "relative",
-          overflow: "hidden",
+          position: "absolute",
+          top: 0,
+          left: 0,
           width: "100%",
           height: "100%",
-          backgroundColor: "#f7fafc",
-          cursor: editor.state.isPanning ? "grabbing" : "default",
-          ...style,
+          overflow: "visible",
+          pointerEvents: "none",
         }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onWheel={handleWheel}
-        onPointerCancel={handlePointerUp}
-        touch-action="none"
       >
-        <BackgroundGrid viewport={editor.state.viewport} />
+        <g transform={viewportTransform}>
+          {edges.map((edge) => (
+            <EdgeRenderer
+              key={edge.id}
+              edge={edge}
+              editor={editor}
+              edgeTypes={edgeTypes}
+              onEdgeInteraction={handleEdgeInteraction}
+            />
+          ))}
+        </g>
+      </svg>
 
-        <svg
-          ref={svgRef}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            overflow: "visible",
-            pointerEvents: "none",
-          }}
-        >
-          <g transform={viewportTransform}>
-            {editor.state.edges.map((edge) => (
-              <EdgeRenderer
-                key={edge.id}
-                edge={edge}
-                editor={editor}
-                edgeTypes={edgeTypes}
-                onEdgeInteraction={handleEdgeInteraction}
-              />
-            ))}
-          </g>
-        </svg>
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          transform: viewportTransform,
+          transformOrigin: "0 0",
+        }}
+      >
+        {nodes.map((node) => (
+          <NodeRenderer
+            key={node.id}
+            node={node}
+            editor={editor}
+            onNodeInteraction={handleNodeInteraction}
+            nodeTypes={nodeTypes}
+          />
+        ))}
+      </div>
 
+      {renderSelectionBox && (
         <div
           style={{
             position: "absolute",
@@ -326,35 +303,13 @@ export function Canvas({
             transformOrigin: "0 0",
           }}
         >
-          {editor.state.nodes.map((node) => (
-            <NodeRenderer
-              key={node.id}
-              node={node}
-              editor={editor}
-              onNodeInteraction={handleNodeInteraction}
-              nodeTypes={nodeTypes}
-            />
-          ))}
+          <SelectionBox box={renderSelectionBox} />
         </div>
+      )}
 
-        {renderSelectionBox && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              transform: viewportTransform,
-              transformOrigin: "0 0",
-            }}
-          >
-            <SelectionBox box={renderSelectionBox} />
-          </div>
-        )}
+      <GroupActionButton position="top-right" />
 
-        <GroupActionButton position="top-right" />
-
-        {children}
-      </div>
-    </CanvasContext.Provider>
+      {children}
+    </div>
   );
 }

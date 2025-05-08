@@ -71,10 +71,21 @@ export class CanvasState {
     };
   }
 
-  getSerializableState(): Pick<CanvasState, "nodes" | "edges"> {
-    return {
-      nodes: this.nodes,
-      edges: this.edges,
-    };
+  updateNodeData(nodeId: string, data: Record<string, any>) {
+    const node = this.getNodeById(nodeId);
+    if (node) {
+      node.data = { ...node.data, ...data };
+    }
+  }
+
+  deleteNodeById(nodeId: string) {
+    this.nodes = this.nodes.filter((node) => node.id !== nodeId);
+    this.edges = this.edges.filter(
+      (edge) => edge.fromNodeId !== nodeId && edge.toNodeId !== nodeId
+    );
+  }
+
+  deleteEdgeById(edgeId: string) {
+    this.edges = this.edges.filter((edge) => edge.id !== edgeId);
   }
 }

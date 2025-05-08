@@ -1,5 +1,6 @@
 import type { Editor } from "../editor";
 import type { Node } from "../types";
+import { useEditorState } from "./context";
 
 export interface CustomNodeProps {
   node: Node;
@@ -8,7 +9,7 @@ export interface CustomNodeProps {
   onNodeInteraction: (event: React.PointerEvent, node: Node) => void;
 }
 
-export function NodeRenderer({
+export const NodeRenderer = ({
   node,
   editor,
   onNodeInteraction,
@@ -18,9 +19,11 @@ export function NodeRenderer({
   editor: Editor;
   onNodeInteraction: (event: React.PointerEvent, node: Node) => void;
   nodeTypes?: Record<string, React.ComponentType<CustomNodeProps>>;
-}) {
+}) => {
   const { position, width = 100, height = 80, type, data } = node;
-  const isSelected = editor.state.selection.nodeIds.includes(node.id);
+  const isSelected = useEditorState((state) =>
+    state.selection.nodeIds.includes(node.id)
+  );
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -72,4 +75,4 @@ export function NodeRenderer({
       )}
     </div>
   );
-}
+};
