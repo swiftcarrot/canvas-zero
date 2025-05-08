@@ -165,7 +165,7 @@ export const Resizable = ({
           }}
           onPointerDown={(e) => handleResizeStart(e, "top-left")}
         />
-        <div
+        {/* <div
           style={{
             ...handleStyle,
             top: -handleSize / 2,
@@ -174,7 +174,7 @@ export const Resizable = ({
             cursor: "ns-resize",
           }}
           onPointerDown={(e) => handleResizeStart(e, "top")}
-        />
+        /> */}
         <div
           style={{
             ...handleStyle,
@@ -184,7 +184,7 @@ export const Resizable = ({
           }}
           onPointerDown={(e) => handleResizeStart(e, "top-right")}
         />
-        <div
+        {/* <div
           style={{
             ...handleStyle,
             top: "50%",
@@ -193,8 +193,8 @@ export const Resizable = ({
             cursor: "ew-resize",
           }}
           onPointerDown={(e) => handleResizeStart(e, "left")}
-        />
-        <div
+        /> */}
+        {/* <div
           style={{
             ...handleStyle,
             top: "50%",
@@ -203,7 +203,7 @@ export const Resizable = ({
             cursor: "ew-resize",
           }}
           onPointerDown={(e) => handleResizeStart(e, "right")}
-        />
+        /> */}
         <div
           style={{
             ...handleStyle,
@@ -213,7 +213,7 @@ export const Resizable = ({
           }}
           onPointerDown={(e) => handleResizeStart(e, "bottom-left")}
         />
-        <div
+        {/* <div
           style={{
             ...handleStyle,
             bottom: -handleSize / 2,
@@ -222,7 +222,7 @@ export const Resizable = ({
             cursor: "ns-resize",
           }}
           onPointerDown={(e) => handleResizeStart(e, "bottom")}
-        />
+        /> */}
         <div
           style={{
             ...handleStyle,

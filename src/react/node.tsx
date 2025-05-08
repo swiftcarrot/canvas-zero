@@ -32,7 +32,6 @@ export const NodeRenderer = ({
   };
 
   const handleResize = (newWidth: number, height: number) => {
-    console.log("handelResize", newWidth, height);
     editor.resizeNode(node.id, newWidth, height);
   };
 
