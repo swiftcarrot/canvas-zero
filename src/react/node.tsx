@@ -1,5 +1,5 @@
 import type { Editor } from "../editor";
-import type { Node } from "../types";
+import type { Node, Box } from "../types";
 import { useEditorState } from "./context";
 import { Resizable } from "./resizable";
 
@@ -31,13 +31,12 @@ export const NodeRenderer = ({
     onNodeInteraction(e, node);
   };
 
-  const handleResize = (newWidth: number, height: number) => {
-    editor.resizeNode(node.id, newWidth, height);
+  const handleResize = (box: Box) => {
+    editor.resizeNode(node.id, box);
   };
 
-  const handleResizeEnd = (finalWidth: number, finalHeight: number) => {
+  const handleResizeEnd = (box: Box) => {
     // The final state is already committed by handleResize
-    // This is needed if we want to perform any additional actions when resizing is complete
   };
 
   const CustomNodeComponent = nodeTypes?.[node.type];
@@ -55,8 +54,7 @@ export const NodeRenderer = ({
       }}
     >
       <Resizable
-        width={width}
-        height={height}
+        box={{ x: position.x, y: position.y, w: width, h: height }}
         isSelected={isSelected!}
         onResize={handleResize}
         onResizeEnd={handleResizeEnd}

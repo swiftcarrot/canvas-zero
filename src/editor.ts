@@ -88,6 +88,7 @@ export class Editor {
   }
 
   moveNodes(nodeIds: string[], deltaX: number, deltaY: number) {
+    // TODO: create undo stack if moving ends
     const snappedDeltaX = this.snapToGrid(deltaX);
     const snappedDeltaY = this.snapToGrid(deltaY);
 
@@ -104,61 +105,24 @@ export class Editor {
 
     const finalNodeIds = Array.from(allNodeIds);
 
-    // Store original positions for undo
-    const originalPositions = finalNodeIds
-      .map((nodeId) => {
-        const node = this.state.getNodeById(nodeId);
-        return { nodeId, position: node ? { ...node.position } : undefined };
-      })
-      .filter((item) => item.position !== undefined);
+    this.state.nodes = this.state.nodes.map((node) => {
+      if (finalNodeIds.includes(node.id)) {
+        return {
+          ...node,
+          position: this.snapPointToGrid({
+            x: node.position.x + snappedDeltaX,
+            y: node.position.y + snappedDeltaY,
+          }),
+        };
+      }
+      return node;
+    });
 
-    this.undoStack.push(
-      () => {
-        this.state.nodes = this.state.nodes.map((node) => {
-          if (finalNodeIds.includes(node.id)) {
-            return {
-              ...node,
-              position: this.snapPointToGrid({
-                x: node.position.x + snappedDeltaX,
-                y: node.position.y + snappedDeltaY,
-              }),
-            };
-          }
-          return node;
-        });
-
-        finalNodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
-        this.triggerUpdate("nodes-moved", {
-          nodeIds: finalNodeIds,
-          delta: { x: snappedDeltaX, y: snappedDeltaY },
-        });
-      },
-      () => {
-        // Restore original positions
-        this.state.nodes = this.state.nodes.map((node) => {
-          const originalPosition = originalPositions.find(
-            (p) => p.nodeId === node.id
-          )?.position;
-          if (originalPosition) {
-            return {
-              ...node,
-              position: originalPosition,
-            };
-          }
-          return node;
-        });
-
-        finalNodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
-        this.triggerUpdate("nodes-moved", {
-          nodeIds: finalNodeIds,
-          delta: { x: -snappedDeltaX, y: -snappedDeltaY },
-        });
-      },
-      nodeIds,
-      snappedDeltaX,
-      snappedDeltaY,
-      originalPositions
-    );
+    finalNodeIds.forEach((nodeId) => this.updateEdgesForNode(nodeId));
+    this.triggerUpdate("nodes-moved", {
+      nodeIds: finalNodeIds,
+      delta: { x: snappedDeltaX, y: snappedDeltaY },
+    });
   }
 
   updateEdgesForNode(nodeId: string) {
@@ -168,47 +132,36 @@ export class Editor {
     }
   }
 
-  // Resize a node
-  resizeNode(nodeId: string, width: number, height: number) {
+  resizeNode(nodeId: string, box: Box) {
+    // TODO: create undo stack if resizing ends
     const node = this.state.getNodeById(nodeId);
-    if (node) {
-      const originalWidth = node.width;
-      const originalHeight = node.height;
-      const newWidth = this.snapToGrid(width);
-      const newHeight = this.snapToGrid(height);
+    if (!node) throw new Error(`Node with id ${nodeId} not found`);
 
-      this.undoStack.push(
-        () => {
-          const n = this.state.getNodeById(nodeId);
-          if (n) {
-            n.width = newWidth;
-            n.height = newHeight;
-            this.updateEdgesForNode(nodeId);
-            this.triggerUpdate("node-resized", {
-              nodeId,
-              size: { width: newWidth, height: newHeight },
-            });
-          }
-        },
-        () => {
-          const n = this.state.getNodeById(nodeId);
-          if (n) {
-            n.width = originalWidth;
-            n.height = originalHeight;
-            this.updateEdgesForNode(nodeId);
-            this.triggerUpdate("node-resized", {
-              nodeId,
-              size: { width: originalWidth, height: originalHeight },
-            });
-          }
-        },
-        nodeId,
-        width,
-        height,
-        originalWidth,
-        originalHeight
-      );
-    }
+    const width = this.snapToGrid(box.w);
+    const height = this.snapToGrid(box.h);
+    const left = this.snapToGrid(box.x);
+    const top = this.snapToGrid(box.y);
+
+    this.state.nodes = this.state.nodes.map((n) => {
+      if (n.id === nodeId) {
+        const updated = {
+          ...n,
+          position: {
+            x: left,
+            y: top,
+          },
+          width: width,
+          height: height,
+        };
+
+        return updated;
+      }
+      return n;
+    });
+
+    this.updateEdgesForNode(nodeId);
+
+    this.triggerUpdate("node-resized");
   }
 
   // Delete a node and its connected edges
