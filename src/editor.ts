@@ -5,6 +5,12 @@ import { generateId, GRID_SIZE, rectanglesOverlap } from "./utils";
 import { EventEmitter } from "./event-emitter";
 import { UndoStack } from "./undo-stack";
 
+// TODO: editor options
+export interface EditorOptions {
+  snapGrid: number;
+  snapToGrid: boolean;
+}
+
 export class Editor {
   state: CanvasState;
   // container: HTMLElement;
@@ -74,6 +80,7 @@ export class Editor {
 
     this.undoStack.push(
       () => {
+        newEdge.points = this.getEdgePoints(newEdge);
         this.state.edges = this.state.edges.concat([newEdge]);
         this.triggerUpdate("edge-created", { edge: newEdge });
       },
@@ -601,7 +608,7 @@ export class Editor {
 
     if (edge.fromHandleId) {
       const node = this.state.getNodeById(edge.fromNodeId!);
-      if (node && node.type !== "group" && node.handles) {
+      if (node && node.handles) {
         const handle = node.handles[edge.fromHandleId];
         if (handle) {
           // TODO: container offset
@@ -622,7 +629,7 @@ export class Editor {
 
     if (edge.toHandleId) {
       const node = this.state.getNodeById(edge.toNodeId!);
-      if (node && node.type !== "group" && node.handles) {
+      if (node && node.handles) {
         const handle = node.handles[edge.toHandleId];
         if (handle) {
           p2 = {

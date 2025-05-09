@@ -1,4 +1,4 @@
-# canvas0
+# canvas-zero
 
 A lightweight infinite canvas library for building interactive node-based applications.
 
