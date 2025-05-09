@@ -1,4 +1,4 @@
-# canvas0
+# canvas-zero
 
 Trying to power your next canvas app, WIP
 
