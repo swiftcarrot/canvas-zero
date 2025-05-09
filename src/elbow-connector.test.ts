@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createElbowConnector } from "../src";
+import { createElbowConnector } from "./";
 
 test("createElbowConnector", () => {
   expect(createElbowConnector({ x: 20, y: 20 }, { x: 40, y: 30 })).toEqual([

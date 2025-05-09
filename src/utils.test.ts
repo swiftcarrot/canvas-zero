@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { simplifyPath } from "../src";
+import { simplifyPath } from "./";
 
 test("simplifyPath", () => {
   expect(simplifyPath([])).toEqual([]);

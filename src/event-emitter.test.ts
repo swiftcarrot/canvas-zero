@@ -1,5 +1,5 @@
 import { test, expect, mock } from "bun:test";
-import { EventEmitter } from "../src";
+import { EventEmitter } from "./";
 
 test("EventEmitter can register and emit events", () => {
   const emitter = new EventEmitter();
