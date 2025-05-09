@@ -1,12 +1,10 @@
 # canvas-zero
 
-A lightweight infinite canvas library for building interactive node-based applications.
+Trying to power your next canvas app, WIP
 
-## Features
-
-- "Headless" design, separate canvas logic with editor sdk and state management
-- node-base ui
-- canvas app
+```ts
+import { createElbowConnector } from "canvas-zero";
+```
 
 ## License
 
