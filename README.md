@@ -1,5 +1,7 @@
 # canvas-zero
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/swiftcarrot/canvas-zero)
+
 Trying to power your next canvas app, WIP
 
 ```ts
